@@ -24,6 +24,7 @@ import {
 } from "../github.js";
 import {
 	calculateIntegrity,
+	computeInstallOrder,
 	type GitHubLockfileEntry,
 	getGitHubSkillName,
 	type PspmLockfileEntry,
@@ -378,7 +379,7 @@ async function installFromLockfile(options: InstallOptions): Promise<void> {
 		}
 
 		// =================================================================
-		// Phase 3: Install registry packages from lockfile
+		// Phase 3: Install registry packages from lockfile (topological order)
 		// =================================================================
 		const packages = lockfile?.packages ?? lockfile?.skills ?? {};
 		const packageCount = Object.keys(packages).length;
@@ -386,7 +387,11 @@ async function installFromLockfile(options: InstallOptions): Promise<void> {
 		if (packageCount > 0) {
 			console.log(`\nInstalling ${packageCount} registry skill(s)...\n`);
 
-			const entries = Object.entries(packages) as [string, PspmLockfileEntry][];
+			// Compute topological install order (dependencies first)
+			const installOrder = computeInstallOrder(packages);
+			const entries: [string, PspmLockfileEntry][] = installOrder
+				.filter((name) => packages[name])
+				.map((name) => [name, packages[name]]);
 
 			for (const [fullName, entry] of entries) {
 				const match = fullName.match(/^@user\/([^/]+)\/([^/]+)$/);

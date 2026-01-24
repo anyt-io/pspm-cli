@@ -15,15 +15,19 @@ import {
 } from "../github.js";
 import {
 	calculateIntegrity,
+	type DependencyNode,
 	formatGitHubSpecifier,
 	type GitHubLockfileEntry,
 	getGitHubSkillName,
 	isGitHubSpecifier,
+	MAX_DEPENDENCY_DEPTH,
 	parseGitHubSpecifier,
 	parseSkillSpecifier,
+	printResolutionErrors,
+	resolveRecursive,
 	resolveVersion,
 } from "../lib/index.js";
-import { addGitHubToLockfile, addToLockfile } from "../lockfile.js";
+import { addGitHubToLockfile, addToLockfileWithDeps } from "../lockfile.js";
 import {
 	addDependency,
 	addGitHubDependency,
@@ -109,7 +113,58 @@ export async function add(
 		);
 	}
 
-	// Phase 2: Determine which agents to use (after validation)
+	// Phase 2: Resolve recursive dependencies for registry packages
+	const config = await resolveConfig();
+	const apiKey = getTokenForRegistry(config, config.registryUrl);
+
+	// Build root deps from validated registry packages
+	const registryPackages = resolvedPackages.filter(
+		(p): p is ResolvedRegistryPackage => p.type === "registry",
+	);
+	const githubPackages = resolvedPackages.filter(
+		(p): p is ResolvedGitHubPackage => p.type === "github",
+	);
+
+	let resolutionResult: Awaited<ReturnType<typeof resolveRecursive>> | null =
+		null;
+
+	if (registryPackages.length > 0) {
+		const rootDeps: Record<string, string> = {};
+		for (const pkg of registryPackages) {
+			const fullName = `@user/${pkg.username}/${pkg.name}`;
+			rootDeps[fullName] = pkg.versionRange || `^${pkg.resolvedVersion}`;
+		}
+
+		// Resolve recursively
+		console.log("Resolving dependencies...");
+		resolutionResult = await resolveRecursive(rootDeps, {
+			maxDepth: MAX_DEPENDENCY_DEPTH,
+			registryUrl: config.registryUrl,
+			apiKey,
+		});
+
+		// Handle resolution errors
+		if (!resolutionResult.success) {
+			printResolutionErrors(
+				resolutionResult.graph.errors,
+				resolutionResult.graph.conflicts,
+			);
+			process.exit(1);
+		}
+
+		const transitiveDeps = resolutionResult.installOrder.filter(
+			(name) => !rootDeps[name],
+		);
+		if (transitiveDeps.length > 0) {
+			console.log(
+				`Resolved ${transitiveDeps.length} transitive dependencies.\n`,
+			);
+		} else {
+			console.log();
+		}
+	}
+
+	// Phase 3: Determine which agents to use (after validation)
 	let agents: string[];
 	const manifest = await readManifest();
 
@@ -129,22 +184,42 @@ export async function add(
 		console.log(); // Add newline after selection
 	}
 
-	// Phase 3: Install all resolved packages
+	// Phase 4: Install all resolved packages
 	const results: { specifier: string; success: boolean; error?: string }[] = [];
 
-	for (const resolved of resolvedPackages) {
-		try {
-			if (resolved.type === "github") {
-				await installGitHubPackage(resolved, {
+	// Install registry packages in topological order (dependencies first)
+	if (resolutionResult) {
+		for (const name of resolutionResult.installOrder) {
+			const node = resolutionResult.graph.nodes.get(name);
+			if (!node) continue;
+
+			try {
+				await installFromNode(node, {
 					...options,
 					resolvedAgents: agents,
+					isDirect: node.isDirect,
 				});
-			} else {
-				await installRegistryPackage(resolved, {
-					...options,
-					resolvedAgents: agents,
+				results.push({ specifier: name, success: true });
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Unknown error";
+				results.push({
+					specifier: name,
+					success: false,
+					error: message,
 				});
+				console.error(`Failed to install ${name}: ${message}\n`);
 			}
+		}
+	}
+
+	// Install GitHub packages (no recursive resolution for now)
+	for (const resolved of githubPackages) {
+		try {
+			await installGitHubPackage(resolved, {
+				...options,
+				resolvedAgents: agents,
+			});
 			results.push({ specifier: resolved.specifier, success: true });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Unknown error";
@@ -172,6 +247,132 @@ export async function add(
 
 interface InternalAddOptions extends AddOptions {
 	resolvedAgents: string[];
+}
+
+interface InternalAddOptionsWithDirect extends InternalAddOptions {
+	/** Whether this is a direct dependency (from command line) */
+	isDirect: boolean;
+}
+
+/**
+ * Install a package from a DependencyNode (resolved from resolver)
+ */
+async function installFromNode(
+	node: DependencyNode,
+	options: InternalAddOptionsWithDirect,
+): Promise<void> {
+	// Parse package name
+	const match = node.name.match(/^@user\/([^/]+)\/([^/]+)$/);
+	if (!match) {
+		throw new Error(`Invalid package name: ${node.name}`);
+	}
+	const [, username, name] = match;
+
+	console.log(`Installing ${node.name}@${node.version}...`);
+
+	// Get config for download
+	const config = await resolveConfig();
+	const apiKey = getTokenForRegistry(config, config.registryUrl);
+
+	// Download the tarball
+	const isPresignedUrl =
+		node.downloadUrl.includes(".r2.cloudflarestorage.com") ||
+		node.downloadUrl.includes("X-Amz-Signature");
+
+	const downloadHeaders: Record<string, string> = {};
+	if (!isPresignedUrl && apiKey) {
+		downloadHeaders.Authorization = `Bearer ${apiKey}`;
+	}
+
+	const tarballResponse = await fetch(node.downloadUrl, {
+		headers: downloadHeaders,
+		redirect: "follow",
+	});
+
+	if (!tarballResponse.ok) {
+		throw new Error(`Failed to download tarball (${tarballResponse.status})`);
+	}
+
+	const tarballBuffer = Buffer.from(await tarballResponse.arrayBuffer());
+
+	// Calculate integrity
+	const integrity = calculateIntegrity(tarballBuffer);
+
+	// Verify checksum matches
+	if (integrity !== node.integrity) {
+		throw new Error("Checksum verification failed");
+	}
+
+	// Create skills directory
+	const skillsDir = getSkillsDir();
+	const destDir = join(skillsDir, username, name);
+	await mkdir(destDir, { recursive: true });
+
+	// Extract tarball
+	const { writeFile } = await import("node:fs/promises");
+	const tempFile = join(destDir, ".temp.tgz");
+	await writeFile(tempFile, tarballBuffer);
+
+	const { exec } = await import("node:child_process");
+	const { promisify } = await import("node:util");
+	const execAsync = promisify(exec);
+
+	try {
+		// Clear destination and extract
+		await rm(destDir, { recursive: true, force: true });
+		await mkdir(destDir, { recursive: true });
+		await writeFile(tempFile, tarballBuffer);
+		await execAsync(
+			`tar -xzf "${tempFile}" -C "${destDir}" --strip-components=1`,
+		);
+	} finally {
+		await rm(tempFile, { force: true });
+	}
+
+	// Update lockfile with dependencies
+	// Convert dependencies to resolved version format
+	const resolvedDeps: Record<string, string> = {};
+	for (const [depName, _range] of Object.entries(node.dependencies)) {
+		// The resolver already resolved the version, but we need to look it up
+		// from the graph. For now, store the range; install.ts will use resolved versions
+		resolvedDeps[depName] = _range;
+	}
+
+	await addToLockfileWithDeps(
+		node.name,
+		{
+			version: node.version,
+			resolved: node.downloadUrl,
+			integrity,
+			deprecated: node.deprecated,
+		},
+		Object.keys(resolvedDeps).length > 0 ? resolvedDeps : undefined,
+	);
+
+	// Only add direct dependencies to pspm.json
+	if (options.isDirect) {
+		const dependencyRange = node.versionRange || `^${node.version}`;
+		await addDependency(node.name, dependencyRange);
+	}
+
+	// Create agent symlinks
+	const agents = options.resolvedAgents;
+	if (agents[0] !== "none") {
+		const skillManifest = await readManifest();
+		const skillInfo: SkillInfo = {
+			name,
+			sourcePath: getRegistrySkillPath(username, name),
+		};
+
+		await createAgentSymlinks([skillInfo], {
+			agents,
+			projectRoot: process.cwd(),
+			agentConfigs: skillManifest?.agents,
+		});
+	}
+
+	console.log(`Installed ${node.name}@${node.version}`);
+	console.log(`Location: ${destDir}`);
 }
 
 /**
@@ -292,110 +493,6 @@ async function validateGitHubPackage(
 		ref,
 		downloadResult: result,
 	};
-}
-
-/**
- * Install a pre-validated registry package
- */
-async function installRegistryPackage(
-	resolved: ResolvedRegistryPackage,
-	options: InternalAddOptions,
-): Promise<void> {
-	const { username, name, versionRange, resolvedVersion, versionInfo } =
-		resolved;
-
-	console.log(`Installing @user/${username}/${name}@${resolvedVersion}...`);
-
-	// Get config for download
-	const config = await resolveConfig();
-	const apiKey = getTokenForRegistry(config, config.registryUrl);
-
-	// Download the tarball
-	const isPresignedUrl =
-		versionInfo.downloadUrl.includes(".r2.cloudflarestorage.com") ||
-		versionInfo.downloadUrl.includes("X-Amz-Signature");
-
-	const downloadHeaders: Record<string, string> = {};
-	if (!isPresignedUrl && apiKey) {
-		downloadHeaders.Authorization = `Bearer ${apiKey}`;
-	}
-
-	const tarballResponse = await fetch(versionInfo.downloadUrl, {
-		headers: downloadHeaders,
-		redirect: "follow",
-	});
-
-	if (!tarballResponse.ok) {
-		throw new Error(`Failed to download tarball (${tarballResponse.status})`);
-	}
-
-	const tarballBuffer = Buffer.from(await tarballResponse.arrayBuffer());
-
-	// Calculate integrity
-	const integrity = calculateIntegrity(tarballBuffer);
-
-	// Verify checksum matches
-	const expectedIntegrity = `sha256-${Buffer.from(versionInfo.checksum, "hex").toString("base64")}`;
-	if (integrity !== expectedIntegrity) {
-		throw new Error("Checksum verification failed");
-	}
-
-	// Create skills directory
-	const skillsDir = getSkillsDir();
-	const destDir = join(skillsDir, username, name);
-	await mkdir(destDir, { recursive: true });
-
-	// Extract tarball
-	const { writeFile } = await import("node:fs/promises");
-	const tempFile = join(destDir, ".temp.tgz");
-	await writeFile(tempFile, tarballBuffer);
-
-	const { exec } = await import("node:child_process");
-	const { promisify } = await import("node:util");
-	const execAsync = promisify(exec);
-
-	try {
-		// Clear destination and extract
-		await rm(destDir, { recursive: true, force: true });
-		await mkdir(destDir, { recursive: true });
-		await writeFile(tempFile, tarballBuffer);
-		await execAsync(
-			`tar -xzf "${tempFile}" -C "${destDir}" --strip-components=1`,
-		);
-	} finally {
-		await rm(tempFile, { force: true });
-	}
-
-	// Update lockfile
-	const fullName = `@user/${username}/${name}`;
-	await addToLockfile(fullName, {
-		version: resolvedVersion,
-		resolved: versionInfo.downloadUrl,
-		integrity,
-	});
-
-	// Add to pspm.json dependencies
-	const dependencyRange = versionRange || `^${resolvedVersion}`;
-	await addDependency(fullName, dependencyRange);
-
-	// Create agent symlinks
-	const agents = options.resolvedAgents;
-	if (agents[0] !== "none") {
-		const skillManifest = await readManifest();
-		const skillInfo: SkillInfo = {
-			name,
-			sourcePath: getRegistrySkillPath(username, name),
-		};
-
-		await createAgentSymlinks([skillInfo], {
-			agents,
-			projectRoot: process.cwd(),
-			agentConfigs: skillManifest?.agents,
-		});
-	}
-
-	console.log(`Installed @user/${username}/${name}@${resolvedVersion}`);
-	console.log(`Location: ${destDir}`);
 }
 
 /**

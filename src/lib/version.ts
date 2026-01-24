@@ -63,3 +63,70 @@ export function getLatestVersion(versions: string[]): string | null {
 	if (valid.length === 0) return null;
 	return valid.sort((a, b) => semver.rcompare(a, b))[0] ?? null;
 }
+
+/**
+ * Find the highest version that satisfies ALL given ranges.
+ * Used for pnpm-style dependency resolution where multiple dependents
+ * may require the same package with different version constraints.
+ *
+ * @param ranges - Array of semver ranges to satisfy (e.g., ["^1.0.0", ">=1.2.0"])
+ * @param availableVersions - List of available version strings
+ * @returns The highest version satisfying all ranges, or null if none found
+ */
+export function findHighestSatisfying(
+	ranges: string[],
+	availableVersions: string[],
+): string | null {
+	const sorted = availableVersions
+		.filter((v) => semver.valid(v))
+		.sort((a, b) => semver.rcompare(a, b));
+
+	if (sorted.length === 0) return null;
+
+	// Normalize ranges
+	const normalizedRanges = ranges.map((r) =>
+		!r || r === "latest" || r === "*" ? "*" : r,
+	);
+
+	// Find highest version satisfying all ranges
+	for (const version of sorted) {
+		const satisfiesAll = normalizedRanges.every((range) =>
+			semver.satisfies(version, range),
+		);
+		if (satisfiesAll) {
+			return version;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Intersect multiple semver ranges to find if they're compatible.
+ * Returns true if there exists at least one version that could satisfy all ranges.
+ *
+ * @param ranges - Array of semver ranges to check
+ * @returns True if ranges can be satisfied together
+ */
+export function rangesIntersect(ranges: string[]): boolean {
+	if (ranges.length === 0) return true;
+	if (ranges.length === 1) return true;
+
+	// Normalize ranges
+	const normalizedRanges = ranges.map((r) =>
+		!r || r === "latest" || r === "*" ? "*" : r,
+	);
+
+	// Check if all ranges intersect by seeing if any version could satisfy all
+	// We use a subset of the range to find intersections
+	try {
+		const intersection = normalizedRanges.reduce((acc, range) => {
+			if (acc === "*") return range;
+			if (range === "*") return acc;
+			return semver.intersects(acc, range) ? `${acc} ${range}` : "";
+		}, "*");
+		return intersection !== "";
+	} catch {
+		return false;
+	}
+}
