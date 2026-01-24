@@ -12,14 +12,35 @@ npm install -g @anytio/pspm
 npx @anytio/pspm <command>
 ```
 
-## Options
+## Command Reference
 
-```bash
-pspm [command] [options]
+```
+Usage: pspm [options] [command]
+
+Prompt Skill Package Manager for AI coding agents
 
 Options:
-  -v, --version          Show version
-  -h, --help             Show help
+  -V, --version                              output the version number
+  -h, --help                                 display help for command
+
+Commands:
+  config                                     Manage PSPM configuration
+  login [options]                            Log in via browser or with an API key
+  logout                                     Log out and clear stored credentials
+  whoami                                     Show current user information
+  init [options]                             Create a new pspm.json manifest in the current directory
+  migrate [options]                          Migrate from old directory structure (.skills/, skill-lock.json)
+  add [options] <specifiers...>              Add one or more skills
+  remove|rm <name>                           Remove an installed skill
+  list|ls [options]                          List installed skills
+  install|i [options] [specifiers...]        Install skills from lockfile, or add and install specific packages
+  link [options]                             Recreate agent symlinks without reinstalling
+  update [options]                           Update all skills to latest compatible versions
+  publish [options]                          Publish current directory as a skill
+  unpublish [options] <specifier>            Remove a published skill version (only within 72 hours of publishing)
+  access [options] [specifier]               Change package visibility (public/private)
+  deprecate [options] <specifier> [message]  Mark a skill version as deprecated (alternative to unpublish after 72 hours)
+  help [command]                             display help for command
 ```
 
 ## Authentication
@@ -93,6 +114,30 @@ pspm config init
 pspm config init --registry https://custom.example.com
 ```
 
+## Project Initialization
+
+### Initialize Manifest
+
+Create a new `pspm.json` manifest file in the current directory:
+
+```bash
+pspm init                          # Interactive prompts
+pspm init -y                       # Use defaults, skip prompts
+pspm init -n my-skill              # Specify name
+pspm init -d "My skill"            # Specify description
+pspm init -a "Your Name"           # Specify author
+pspm init -f                       # Overwrite existing pspm.json
+```
+
+### Migrate from Old Structure
+
+Migrate from old directory structure (`.skills/`, `skill-lock.json`):
+
+```bash
+pspm migrate                       # Perform migration
+pspm migrate --dry-run             # Preview changes without applying
+```
+
 ## Skill Management
 
 ### Add Skill
@@ -113,9 +158,13 @@ pspm add github:owner/repo@main             # Entire repo, specific branch
 pspm add github:owner/repo/path/to/skill    # Subdirectory, default branch
 pspm add github:owner/repo/path@v1.0.0      # Subdirectory with tag/ref
 
+# Add multiple skills at once:
+pspm add @user/alice/skill1 @user/bob/skill2
+
 # Agent options:
 pspm add @user/skill --agent claude-code,cursor  # Link to multiple agents
 pspm add github:owner/repo --agent none          # Skip symlink creation
+pspm add @user/skill -y                          # Skip agent selection prompt
 ```
 
 ### Remove Skill
@@ -156,10 +205,17 @@ Install all skills from the lockfile:
 
 ```bash
 pspm install
-pspm install --frozen-lockfile    # CI/CD mode - fail if lockfile missing
-pspm install --dir ./vendor/skills
+pspm i
+
+# With options:
+pspm install --frozen-lockfile           # CI/CD mode - fail if lockfile missing
+pspm install --dir ./vendor/skills       # Install to specific directory
 pspm install --agent claude-code,cursor  # Link to multiple agents
 pspm install --agent none                # Skip symlink creation
+pspm install -y                          # Skip agent selection prompt
+
+# Install specific packages (like npm):
+pspm install @user/alice/skill1 github:org/repo
 ```
 
 ### Link Skills
@@ -169,6 +225,7 @@ Recreate agent symlinks without reinstalling (useful after adding agents):
 ```bash
 pspm link
 pspm link --agent claude-code,cursor  # Link to specific agents
+pspm link -y                          # Skip agent selection prompt
 ```
 
 ### Update Skills
@@ -191,14 +248,18 @@ pspm publish --bump minor --tag beta
 pspm publish --access public # Publish and make public in one step
 ```
 
-**Required `package.json` fields:**
+**Required `pspm.json` fields:**
 - `name` - Skill name (e.g., `@user/username/skillname`)
 - `version` - Semver version
 
-**Optional `package.json` fields:**
-- `files` - Files to include (default: `["package.json", "SKILL.md", "runtime", "scripts", "data"]`)
+**Optional `pspm.json` fields:**
+- `description` - Skill description
+- `author` - Author name
+- `files` - Files to include (default: `["pspm.json", "SKILL.md", "runtime", "scripts", "data"]`)
 
 ### Unpublish Skill
+
+Remove a published skill version (only within 72 hours of publishing):
 
 ```bash
 pspm unpublish <specifier> --force
@@ -208,6 +269,20 @@ pspm unpublish @user/bsheng/vite_slides@2.0.0 --force
 
 # Delete all versions
 pspm unpublish @user/bsheng/vite_slides --force
+```
+
+### Deprecate Skill
+
+Mark a skill version as deprecated (alternative to unpublish after 72 hours):
+
+```bash
+pspm deprecate <specifier> [message]
+
+# Deprecate with message
+pspm deprecate @user/bsheng/old-skill@1.0.0 "Use @user/bsheng/new-skill instead"
+
+# Remove deprecation
+pspm deprecate @user/bsheng/old-skill@1.0.0 --undo
 ```
 
 ## Visibility
@@ -260,6 +335,20 @@ Project-specific configuration (optional):
 registry = https://custom.example.com
 ```
 
+### Manifest: `pspm.json`
+
+Package manifest file (created with `pspm init`):
+
+```json
+{
+  "name": "@user/username/my-skill",
+  "version": "1.0.0",
+  "description": "A helpful skill for...",
+  "author": "Your Name",
+  "files": ["pspm.json", "SKILL.md", "runtime", "scripts", "data"]
+}
+```
+
 ### Lockfile: `pspm-lock.json`
 
 ```json
@@ -298,7 +387,6 @@ Configuration is resolved in priority order:
 
 | Variable | Purpose |
 |----------|---------|
-| `PSPM_REGISTRY_URL` | Override registry URL |
 | `PSPM_API_KEY` | Override API key |
 | `PSPM_DEBUG` | Enable debug logging |
 | `GITHUB_TOKEN` | GitHub token for private repos and higher rate limits |
@@ -333,27 +421,20 @@ project/
 ### CI/CD Integration
 
 ```bash
-# Use environment variables
+# Use environment variable for authentication
 export PSPM_API_KEY=sk_ci_key
-export PSPM_REGISTRY_URL=https://registry.company.com
 
+# Install with frozen lockfile (fails if lockfile missing or outdated)
 pspm install --frozen-lockfile
-```
-
-### Using Different Registries
-
-```bash
-# Override registry for a single command
-PSPM_REGISTRY_URL=https://staging.example.com pspm add @user/bsheng/skill
-
-# Or set in project config
-echo "registry = https://staging.example.com" >> .pspmrc
 ```
 
 ### Publishing Workflow
 
 ```bash
-# Edit package.json with name and version
+# Initialize a new skill
+pspm init
+
+# Edit pspm.json and create SKILL.md
 # Then publish with auto-bump
 pspm publish --bump patch
 ```
@@ -381,4 +462,4 @@ The migration will:
 2. Create a new `~/.pspmrc` file
 3. Remove the old `~/.pspm/config.json`
 
-If you were using multiple profiles, only the default profile is migrated. Use environment variables (`PSPM_REGISTRY_URL`, `PSPM_API_KEY`) to switch between registries.
+Use `pspm migrate` to migrate project-level files from old directory structure (`.skills/`, `skill-lock.json`).

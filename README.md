@@ -2,11 +2,21 @@
 
 A CLI for managing prompt skills across AI coding agents.
 
+**Website:** [https://pspm.dev](https://pspm.dev)
+
 ## What is PSPM?
 
 PSPM (Prompt Skill Package Manager) is a package manager for prompt skills - small, discoverable capabilities packaged as `SKILL.md` files. Think of it as npm for AI agent skills.
 
 Skills are designed to work with any AI coding agent that supports the SKILL.md format, including Claude Code, Cursor, Windsurf, and others.
+
+## Why PSPM?
+
+**Easy Sharing** - Share your prompt skills with teammates or the community. Publish to the registry and let others install with a single command.
+
+**Version Control** - Full semver support just like npm. Pin exact versions, use ranges (`^1.0.0`, `~1.2.0`), or reference GitHub tags directly. Lock versions with `pspm-lock.json` for reproducible installations.
+
+**Public & Private Skills** - Keep proprietary skills private within your organization, or publish them publicly for anyone to use. Private skills require authentication to download.
 
 ## Installation
 
@@ -26,6 +36,9 @@ npx @anytio/pspm <command>
 # Login with your API key
 pspm login --api-key <your-api-key>
 
+# Initialize a new skill project
+pspm init
+
 # Add a skill from the registry
 pspm add @user/username/skill-name
 
@@ -36,7 +49,7 @@ pspm add github:owner/repo/path@main
 pspm list
 
 # Install all skills from lockfile
-pspm install --agent claude-code,cursor
+pspm install
 ```
 
 ## Commands
@@ -45,8 +58,17 @@ pspm install --agent claude-code,cursor
 
 ```bash
 pspm login --api-key <key>    # Authenticate with API key
+pspm login                    # Authenticate via browser
 pspm logout                   # Clear stored credentials
 pspm whoami                   # Show current user info
+```
+
+### Project Initialization
+
+```bash
+pspm init                     # Create pspm.json manifest (interactive)
+pspm init -y                  # Create pspm.json with defaults
+pspm migrate                  # Migrate from old directory structure
 ```
 
 ### Skill Management
@@ -94,6 +116,7 @@ pspm publish                  # Publish current directory as a skill
 pspm publish --bump patch     # Auto-bump version (major, minor, patch)
 pspm publish --access public  # Publish and make public in one step
 pspm unpublish <spec> --force # Remove a published skill version
+pspm deprecate <spec> [msg]   # Mark a version as deprecated
 ```
 
 ### Visibility
@@ -104,31 +127,6 @@ pspm access <spec> --public   # Make specific package public
 ```
 
 **Note:** Making a package public is irreversible (like npm). Public packages cannot be made private again.
-
-**Publish Output:**
-
-When publishing, PSPM displays detailed package information similar to npm:
-
-```
-pspm notice
-pspm notice 📦  my-skill@1.0.0
-pspm notice Tarball Contents
-pspm notice   5.1kB SKILL.md
-pspm notice   1.5kB package.json
-pspm notice Tarball Details
-pspm notice name:          my-skill
-pspm notice version:       1.0.0
-pspm notice filename:      my-skill-1.0.0.tgz
-pspm notice package size:  2.3kB
-pspm notice unpacked size: 6.6kB
-pspm notice shasum:        4bb744fcfa90b8b033feed3deaeeb00f3a4503e5
-pspm notice integrity:     sha512-DqQJaugblfE5A...
-pspm notice total files:   2
-pspm notice
-pspm notice Publishing to https://pspm.dev with tag latest
-+ @user/username/my-skill@1.0.0
-Checksum: abc123...
-```
 
 ### Configuration
 
@@ -148,13 +146,6 @@ PSPM uses a simple npm-like INI configuration format.
 registry = https://pspm.dev
 authToken = sk_...
 username = myuser
-
-; Multi-registry: Scope mappings
-@myorg:registry = https://corp.pspm.io
-
-; Multi-registry: Per-registry tokens
-//pspm.dev:authToken = sk_public_token
-//corp.pspm.io:authToken = sk_corp_token
 ```
 
 ### Project Config (`.pspmrc`)
@@ -191,46 +182,13 @@ registry = https://custom-registry.example.com
 }
 ```
 
-### Configuration Resolution
-
-Configuration is resolved in priority order:
-
-1. **Environment Variables** (`PSPM_REGISTRY_URL`, `PSPM_API_KEY`) - Highest
-2. **Project Config** (`.pspmrc` in project directory)
-3. **User Config** (`~/.pspmrc`)
-4. **Defaults** - Lowest
-
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `PSPM_REGISTRY_URL` | Override registry URL |
 | `PSPM_API_KEY` | Override API key |
 | `PSPM_DEBUG` | Enable debug logging |
 | `GITHUB_TOKEN` | GitHub token for private repos and higher rate limits |
-
-## Error Handling
-
-PSPM provides clear, actionable error messages:
-
-**Version Conflict:**
-```
-pspm error code E403
-pspm error 403 403 Forbidden - You cannot publish over the previously published versions: 1.0.0.
-Error: [BAD_REQUEST] Version 1.0.0 must be greater than existing version 1.0.0
-```
-
-**Validation Errors:**
-```
-Error: Validation failed:
-  - name: Skill name must start with a letter and contain only lowercase letters, numbers, and hyphens
-  - version: Invalid semver version
-```
-
-**Authentication Errors:**
-```
-Error: Not logged in. Run 'pspm login --api-key <key>' first, or set PSPM_API_KEY env var.
-```
 
 ## Directory Structure
 
@@ -263,24 +221,24 @@ project/
 
 ## Creating a Skill
 
-A skill is a directory containing at minimum a `package.json` and `SKILL.md`:
+A skill is a directory containing at minimum a `pspm.json` and `SKILL.md`:
 
 ```
 my-skill/
-├── package.json         # Required: name, version
+├── pspm.json            # Required: name, version
 ├── SKILL.md             # Required: skill instructions
 ├── runtime/             # Optional: runtime files
 ├── scripts/             # Optional: scripts
 └── data/                # Optional: data files
 ```
 
-**package.json:**
+**pspm.json** (created with `pspm init`):
 ```json
 {
   "name": "@user/myusername/my-skill",
   "version": "1.0.0",
   "description": "A helpful skill for...",
-  "files": ["package.json", "SKILL.md", "runtime", "scripts", "data"]
+  "files": ["pspm.json", "SKILL.md", "runtime", "scripts", "data"]
 }
 ```
 
@@ -299,31 +257,11 @@ When activated, this skill helps you...
 ## CI/CD Integration
 
 ```bash
-# Use environment variables
+# Use environment variable for authentication
 export PSPM_API_KEY=sk_ci_key
-export PSPM_REGISTRY_URL=https://registry.example.com/api/skills
 
 # Install with frozen lockfile (fails if lockfile is outdated)
 pspm install --frozen-lockfile
-```
-
-## Using Different Registries
-
-Use environment variables to switch between registries:
-
-```bash
-# Development
-PSPM_REGISTRY_URL=https://staging.example.com pspm add @user/bsheng/skill
-
-# Production
-PSPM_REGISTRY_URL=https://prod.example.com pspm publish
-```
-
-Or set the registry in your project's `.pspmrc`:
-
-```ini
-; .pspmrc
-registry = https://custom-registry.example.com
 ```
 
 ## License
