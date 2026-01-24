@@ -34,7 +34,7 @@ npx @anytio/pspm <command>
 
 ```bash
 # Login with your API key
-pspm login --api-key <your-api-key>
+pspm login
 
 # Initialize a new skill project
 pspm init
