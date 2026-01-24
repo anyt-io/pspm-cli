@@ -20,6 +20,10 @@ pnpm lint             # Biome linting
 pnpm check            # Biome check (lint + format validation)
 pnpm format           # Format with Biome
 pnpm knip             # Check for unused dependencies/exports
+
+# Testing
+pnpm test             # Run tests once with Vitest
+pnpm test:watch       # Run tests in watch mode
 ```
 
 ## Architecture
@@ -40,9 +44,10 @@ pnpm knip             # Check for unused dependencies/exports
 
 ### Library Modules (`src/lib/`)
 - `specifier.ts` - Parse registry (`@user/username/skill`) and GitHub (`github:owner/repo`) specifiers
-- `version.ts` - Semver version resolution
+- `version.ts` - Semver version resolution, `findHighestSatisfying()` for multi-range resolution
+- `resolver.ts` - Recursive dependency resolution with BFS, topological sort, cycle detection
 - `integrity.ts` - SHA integrity hash generation
-- `lockfile.ts` - Lockfile types and helpers
+- `lockfile.ts` - Lockfile types (v1-v4) and helpers
 - `manifest.ts` - Manifest types and validation
 
 ### SDK (`src/sdk/`)
@@ -63,6 +68,13 @@ Skills are installed to `.pspm/skills/` and symlinked to agent directories:
 - `.gemini/skills/` (Gemini CLI)
 - `.kiro/skills/` (Kiro CLI)
 - `.opencode/skills/` (OpenCode)
+
+### Dependency Resolution
+- **Recursive resolution**: Registry packages resolve transitive dependencies automatically
+- **Highest satisfying version**: When multiple packages need the same dependency, picks highest version satisfying all ranges
+- **5-depth limit**: Prevents excessively deep dependency trees
+- **Topological installation**: Dependencies installed before dependents
+- **Lockfile v4**: Stores resolved dependency graph in `pspm-lock.json`
 
 ### Configuration Cascade
 Priority order (highest to lowest):

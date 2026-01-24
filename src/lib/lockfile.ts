@@ -6,10 +6,11 @@
  * - v1 used "skill-lock.json" with `skills` key.
  * - v2 uses "pspm-lock.json" with `packages` key.
  * - v3 adds `githubPackages` key for GitHub dependencies.
+ * - v4 adds `dependencies` field to entries for recursive resolution.
  */
 export interface PspmLockfile {
 	/** Lockfile format version */
-	lockfileVersion: 1 | 2 | 3;
+	lockfileVersion: 1 | 2 | 3 | 4;
 	/** Registry URL used for resolution */
 	registryUrl: string;
 	/** Installed packages from registry (v2+ format) */
@@ -32,6 +33,8 @@ export interface PspmLockfileEntry {
 	integrity: string;
 	/** Deprecation message if this version is deprecated */
 	deprecated?: string;
+	/** Dependencies: package name -> resolved version (v4+) */
+	dependencies?: Record<string, string>;
 }
 
 /**

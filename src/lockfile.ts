@@ -116,17 +116,24 @@ export async function readLockfile(): Promise<PspmLockfile | null> {
 }
 
 /**
- * Write the lockfile (always v3 format)
+ * Write the lockfile (v4 format if any package has dependencies, otherwise v3)
  */
 export async function writeLockfile(lockfile: PspmLockfile): Promise<void> {
 	const lockfilePath = getLockfilePath();
 	await mkdir(dirname(lockfilePath), { recursive: true });
 
-	// Always write as v3 format
+	const packages = lockfile.packages ?? lockfile.skills ?? {};
+
+	// Check if any package has dependencies to determine version
+	const hasDependencies = Object.values(packages).some(
+		(pkg) => pkg.dependencies && Object.keys(pkg.dependencies).length > 0,
+	);
+	const version = hasDependencies ? 4 : 3;
+
 	const normalized: PspmLockfile = {
-		lockfileVersion: 3,
+		lockfileVersion: version,
 		registryUrl: lockfile.registryUrl,
-		packages: lockfile.packages ?? lockfile.skills ?? {},
+		packages,
 	};
 
 	// Only include githubPackages if there are entries
@@ -141,12 +148,12 @@ export async function writeLockfile(lockfile: PspmLockfile): Promise<void> {
 }
 
 /**
- * Create a new empty lockfile (v3 format)
+ * Create a new empty lockfile (v4 format)
  */
 export async function createEmptyLockfile(): Promise<PspmLockfile> {
 	const registryUrl = await getRegistryUrl();
 	return {
-		lockfileVersion: 3,
+		lockfileVersion: 4,
 		registryUrl,
 		packages: {},
 	};
@@ -175,6 +182,30 @@ export async function addToLockfile(
 
 	const packages = getPackages(lockfile);
 	packages[fullName] = entry;
+	lockfile.packages = packages;
+
+	await writeLockfile(lockfile);
+}
+
+/**
+ * Add a skill to the lockfile with dependencies (v4 format)
+ */
+export async function addToLockfileWithDeps(
+	fullName: string,
+	entry: PspmLockfileEntry,
+	dependencies?: Record<string, string>,
+): Promise<void> {
+	let lockfile = await readLockfile();
+	if (!lockfile) {
+		lockfile = await createEmptyLockfile();
+	}
+
+	const packages = getPackages(lockfile);
+	const entryWithDeps = { ...entry };
+	if (dependencies && Object.keys(dependencies).length > 0) {
+		entryWithDeps.dependencies = dependencies;
+	}
+	packages[fullName] = entryWithDeps;
 	lockfile.packages = packages;
 
 	await writeLockfile(lockfile);

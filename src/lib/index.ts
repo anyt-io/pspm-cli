@@ -44,9 +44,29 @@ export {
 // Version utilities
 export {
 	compareVersions,
+	findHighestSatisfying,
 	getLatestVersion,
 	isNewerVersion,
 	normalizeVersionRange,
+	rangesIntersect,
 	resolveVersion,
 	versionSatisfies,
 } from "./version.js";
+
+// Resolver utilities
+export {
+	computeInstallOrder,
+	type DependencyGraph,
+	type DependencyNode,
+	formatResolutionErrors,
+	formatVersionConflicts,
+	MAX_DEPENDENCY_DEPTH,
+	printResolutionErrors,
+	type ResolutionError,
+	type ResolutionErrorType,
+	type ResolutionResult,
+	type ResolverConfig,
+	resolveRecursive,
+	topologicalSort,
+	type VersionConflict,
+} from "./resolver.js";
