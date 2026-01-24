@@ -1,0 +1,72 @@
+{
+	"name": "@anytio/pspm",
+	"version": "0.2.0",
+	"description": "CLI for PSPM - Prompt Skill Package Manager for AI coding agents",
+	"author": "anyt.io",
+	"license": "Artistic-2.0",
+	"keywords": [
+		"prompt",
+		"skill",
+		"package-manager",
+		"ai",
+		"claude",
+		"claude-code",
+		"coding-agent"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/anyt-io/pspm-cli"
+	},
+	"homepage": "https://pspm.dev",
+	"bugs": {
+		"url": "https://github.com/anyt-io/pspm-cli/issues"
+	},
+	"type": "module",
+	"exports": {
+		".": "./dist/index.js"
+	},
+	"bin": {
+		"pspm": "./bin/pspm.js"
+	},
+	"files": [
+		"bin",
+		"dist",
+		"README.md",
+		"CHANGELOG.md",
+		"CLI_GUIDE.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"dev": "tsx src/index.ts",
+		"build": "tsup",
+		"start": "node dist/index.js",
+		"link": "pnpm build && pnpm link --global",
+		"unlink": "pnpm unlink --global",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome lint src",
+		"check": "biome check src",
+		"format": "biome format ./src --write",
+		"knip": "knip",
+		"prepublishOnly": "pnpm build"
+	},
+	"dependencies": {
+		"@inquirer/prompts": "^7.4.0",
+		"commander": "^14.0.0",
+		"ini": "^5.0.0",
+		"open": "^10.2.0",
+		"semver": "^7.7.2"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.12",
+		"@types/ini": "^4.1.1",
+		"@types/node": "^22.15.3",
+		"@types/semver": "^7.7.0",
+		"knip": "^5.82.1",
+		"tsup": "^8.5.0",
+		"tsx": "^4.19.4",
+		"typescript": "^5.8.3"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}
