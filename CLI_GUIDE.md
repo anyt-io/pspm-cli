@@ -158,6 +158,11 @@ pspm add github:owner/repo@main             # Entire repo, specific branch
 pspm add github:owner/repo/path/to/skill    # Subdirectory, default branch
 pspm add github:owner/repo/path@v1.0.0      # Subdirectory with tag/ref
 
+# Local specifier formats:
+pspm add file:../my-skill                   # Relative path (symlinked)
+pspm add file:/absolute/path/to/skill       # Absolute path
+pspm add ../my-skill                        # Auto-detected as file:../my-skill
+
 # Add multiple skills at once:
 pspm add @user/alice/skill1 @user/bob/skill2
 
@@ -196,7 +201,10 @@ pspm list --json
 #   github:owner/repo/skills/react-tips (main@abc1234)
 #     -> .claude/skills/react-tips, .cursor/skills/react-tips
 #
-# Total: 2 skill(s) (1 registry, 1 github)
+#   my-local-skill [local] <- ../my-local-skill
+#     -> .claude/skills/my-local-skill
+#
+# Total: 3 skill(s) (1 registry, 1 github, 1 local)
 ```
 
 ### Install Skills
@@ -353,7 +361,7 @@ Package manifest file (created with `pspm init`):
 
 ```json
 {
-  "lockfileVersion": 3,
+  "lockfileVersion": 5,
   "registryUrl": "https://pspm.dev",
   "packages": {
     "@user/bsheng/vite_slides": {
@@ -369,6 +377,14 @@ Package manifest file (created with `pspm init`):
       "integrity": "sha256-...",
       "gitCommit": "abc1234567890...",
       "gitRef": "main"
+    }
+  },
+  "localPackages": {
+    "file:../my-skill": {
+      "version": "local",
+      "path": "../my-skill",
+      "resolvedPath": "/absolute/path/to/my-skill",
+      "name": "my-skill"
     }
   }
 }
@@ -402,10 +418,12 @@ project/
 │   ├── skills/          # Installed skills
 │   │   ├── {username}/  # Registry skills
 │   │   │   └── {skillname}/
-│   │   └── _github/     # GitHub skills
-│   │       └── {owner}/
-│   │           └── {repo}/
-│   │               └── {path}/
+│   │   ├── _github/     # GitHub skills
+│   │   │   └── {owner}/
+│   │   │       └── {repo}/
+│   │   │           └── {path}/
+│   │   └── _local/      # Local skills (symlinks)
+│   │       └── {name} -> /path/to/source
 │   └── cache/           # Tarball cache
 ├── .claude/
 │   └── skills/          # Symlinks for claude-code agent

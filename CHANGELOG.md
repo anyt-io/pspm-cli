@@ -5,6 +5,27 @@ All notable changes to the PSPM CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-27
+
+### Added
+
+- **Local directory support**: Install skills directly from local directories using the `file:` protocol
+  - `pspm add file:../my-skill` - Install from relative path
+  - `pspm add file:/absolute/path/to/skill` - Install from absolute path
+  - `pspm add ../my-skill` - Auto-detected as `file:../my-skill`
+  - Local packages are symlinked (not copied) for instant updates during development
+  - `localDependencies` section in `pspm.json`
+  - `localPackages` section in lockfile (version 5)
+  - Local packages stored as symlinks in `.pspm/skills/_local/{name}/`
+
+- **Enhanced `list` command**: Shows local packages with `[local]` indicator and path
+
+### Changed
+
+- Lockfile version bumped to 5 to support `localPackages`
+- `install` command now processes local dependencies (Phase 2.5 resolve, Phase 4.5 install)
+- `remove` command now handles local package removal
+
 ## [0.2.0] - 2026-01-23
 
 ### Changed

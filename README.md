@@ -100,6 +100,11 @@ pspm install                                     # Install all from lockfile
 - `github:owner/repo/path/to/skill` - Subdirectory within repo
 - `github:owner/repo/path/to/skill@v1.0.0` - Subdirectory with tag
 
+**Local specifier formats:**
+- `file:../my-skill` - Relative path (symlinked, not copied)
+- `file:/absolute/path/to/skill` - Absolute path
+- `../my-skill` - Auto-detected as `file:../my-skill`
+
 **Agent symlink options:**
 ```bash
 pspm add <specifier> --agent claude-code,cursor  # Link to multiple agents
@@ -161,7 +166,7 @@ registry = https://custom-registry.example.com
 
 ```json
 {
-  "lockfileVersion": 3,
+  "lockfileVersion": 5,
   "registryUrl": "https://pspm.dev",
   "packages": {
     "@user/username/skillname": {
@@ -177,6 +182,14 @@ registry = https://custom-registry.example.com
       "integrity": "sha256-...",
       "gitCommit": "abc1234567890...",
       "gitRef": "main"
+    }
+  },
+  "localPackages": {
+    "file:../my-skill": {
+      "version": "local",
+      "path": "../my-skill",
+      "resolvedPath": "/absolute/path/to/my-skill",
+      "name": "my-skill"
     }
   }
 }
@@ -202,11 +215,13 @@ project/
 │   │   ├── username/    # Registry skills
 │   │   │   └── skillname/
 │   │   │       └── SKILL.md
-│   │   └── _github/     # GitHub skills
-│   │       └── owner/
-│   │           └── repo/
-│   │               └── path/
-│   │                   └── SKILL.md
+│   │   ├── _github/     # GitHub skills
+│   │   │   └── owner/
+│   │   │       └── repo/
+│   │   │           └── path/
+│   │   │               └── SKILL.md
+│   │   └── _local/      # Local skills (symlinks)
+│   │       └── my-skill -> /absolute/path/to/my-skill
 │   └── cache/           # Tarball cache
 ├── .claude/
 │   └── skills/          # Symlinks for claude-code agent
