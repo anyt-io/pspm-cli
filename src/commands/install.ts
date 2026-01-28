@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import {
+	lstat,
+	mkdir,
+	readFile,
+	rm,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
+import { dirname, join, relative } from "node:path";
 import { parseAgentArg, promptForAgents } from "../agents.js";
 import {
 	configure,
@@ -27,13 +34,18 @@ import {
 	computeInstallOrder,
 	type GitHubLockfileEntry,
 	getGitHubSkillName,
+	type LocalLockfileEntry,
 	type PspmLockfileEntry,
 	parseGitHubSpecifier,
+	parseLocalSpecifier,
 	parseSkillSpecifier,
+	resolveLocalPath,
 	resolveVersion,
+	validateLocalSkill,
 } from "../lib/index.js";
 import {
 	addGitHubToLockfile,
+	addLocalToLockfile,
 	addToLockfile,
 	migrateLockfileIfNeeded,
 	readLockfile,
@@ -41,11 +53,13 @@ import {
 import {
 	getDependencies,
 	getGitHubDependencies,
+	getLocalDependencies,
 	readManifest,
 } from "../manifest.js";
 import {
 	createAgentSymlinks,
 	getGitHubSkillPath,
+	getLocalSkillPath,
 	getRegistrySkillPath,
 	type SkillInfo,
 } from "../symlinks.js";
@@ -150,8 +164,10 @@ async function installFromLockfile(options: InstallOptions): Promise<void> {
 		let lockfile = await readLockfile();
 		const manifestDeps = await getDependencies();
 		const manifestGitHubDeps = await getGitHubDependencies();
+		const manifestLocalDeps = await getLocalDependencies();
 		const lockfilePackages = lockfile?.packages ?? lockfile?.skills ?? {};
 		const lockfileGitHubPackages = lockfile?.githubPackages ?? {};
+		const lockfileLocalPackages = lockfile?.localPackages ?? {};
 
 		// Track all installed skills for symlink creation
 		const installedSkills: SkillInfo[] = [];
@@ -349,6 +365,72 @@ async function installFromLockfile(options: InstallOptions): Promise<void> {
 						console.error(`Error resolving ${specifier}: ${message}`);
 					}
 				}
+			}
+
+			// Re-read lockfile after adding new entries
+			lockfile = await readLockfile();
+		}
+
+		// =================================================================
+		// Phase 2.5: Resolve/validate local dependencies
+		// =================================================================
+		const missingLocalDeps: Array<{ specifier: string }> = [];
+		for (const [specifier] of Object.entries(manifestLocalDeps)) {
+			if (!lockfileLocalPackages[specifier]) {
+				missingLocalDeps.push({ specifier });
+			}
+		}
+
+		if (missingLocalDeps.length > 0) {
+			if (options.frozenLockfile) {
+				console.error(
+					"Error: Local dependencies in pspm.json are not in lockfile. Cannot install with --frozen-lockfile",
+				);
+				console.error("Missing local dependencies:");
+				for (const dep of missingLocalDeps) {
+					console.error(`  - ${dep.specifier}`);
+				}
+				process.exit(1);
+			}
+
+			console.log(
+				`\nResolving ${missingLocalDeps.length} local dependency(ies)...\n`,
+			);
+
+			for (const { specifier } of missingLocalDeps) {
+				const parsed = parseLocalSpecifier(specifier);
+				if (!parsed) {
+					console.error(`Error: Invalid local specifier: ${specifier}`);
+					continue;
+				}
+
+				console.log(`Resolving ${specifier}...`);
+
+				// Resolve path
+				const resolvedPath = resolveLocalPath(parsed);
+
+				// Validate the local skill
+				const validation = await validateLocalSkill(resolvedPath);
+				if (!validation.valid) {
+					console.error(`Error: ${validation.error}`);
+					continue;
+				}
+
+				const name =
+					validation.manifest?.name ||
+					parsed.path.split("/").pop() ||
+					"unknown";
+
+				// Add to lockfile
+				const entry: LocalLockfileEntry = {
+					version: "local",
+					path: parsed.path,
+					resolvedPath,
+					name,
+				};
+
+				await addLocalToLockfile(specifier, entry);
+				console.log(`  Resolved ${specifier} -> ${name} (local)`);
 			}
 
 			// Re-read lockfile after adding new entries
@@ -595,6 +677,70 @@ async function installFromLockfile(options: InstallOptions): Promise<void> {
 		}
 
 		// =================================================================
+		// Phase 4.5: Install local packages from lockfile (create symlinks)
+		// =================================================================
+		const localPackages = lockfile?.localPackages ?? {};
+		const localCount = Object.keys(localPackages).length;
+
+		if (localCount > 0) {
+			console.log(`\nInstalling ${localCount} local skill(s)...\n`);
+
+			for (const [specifier, entry] of Object.entries(localPackages)) {
+				const localEntry = entry as LocalLockfileEntry;
+				console.log(`Installing ${specifier} (local symlink)...`);
+
+				// Validate the local skill still exists
+				const validation = await validateLocalSkill(localEntry.resolvedPath);
+				if (!validation.valid) {
+					console.error(`  Error: ${validation.error}`);
+					console.error(
+						`  Hint: The local skill at ${localEntry.resolvedPath} may have been moved or deleted.`,
+					);
+					continue;
+				}
+
+				// Create the _local directory
+				const localDir = join(skillsDir, "_local");
+				await mkdir(localDir, { recursive: true });
+
+				// Create symlink from .pspm/skills/_local/{name} -> resolved path
+				const symlinkPath = join(localDir, localEntry.name);
+
+				// Remove existing symlink if any
+				try {
+					const stats = await lstat(symlinkPath);
+					if (stats.isSymbolicLink()) {
+						await rm(symlinkPath);
+					}
+				} catch {
+					// Doesn't exist, that's fine
+				}
+
+				// Create symlink (use relative path from symlink location to target)
+				const relativeTarget = relative(
+					dirname(symlinkPath),
+					localEntry.resolvedPath,
+				);
+				try {
+					await symlink(relativeTarget, symlinkPath);
+					console.log(
+						`  Installed to ${symlinkPath} -> ${localEntry.resolvedPath}`,
+					);
+
+					// Track for agent symlinks
+					installedSkills.push({
+						name: localEntry.name,
+						sourcePath: getLocalSkillPath(localEntry.name),
+					});
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					console.error(`  Error creating symlink: ${message}`);
+				}
+			}
+		}
+
+		// =================================================================
 		// Phase 5: Create agent symlinks
 		// =================================================================
 		if (installedSkills.length > 0 && agents[0] !== "none") {
@@ -612,7 +758,7 @@ async function installFromLockfile(options: InstallOptions): Promise<void> {
 		// =================================================================
 		// Summary
 		// =================================================================
-		const totalCount = packageCount + githubCount;
+		const totalCount = packageCount + githubCount + localCount;
 		if (totalCount === 0) {
 			console.log("No skills to install.");
 		} else {

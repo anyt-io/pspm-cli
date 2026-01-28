@@ -4,6 +4,7 @@
  * Supports:
  * - Registry skills (by full specifier or short name)
  * - GitHub skills (by specifier or skill name)
+ * - Local skills (by specifier or skill name)
  */
 
 import { rm } from "node:fs/promises";
@@ -13,18 +14,23 @@ import { getSkillsDir } from "../config.js";
 import {
 	getGitHubSkillName,
 	isGitHubSpecifier,
+	isLocalSpecifier,
 	parseGitHubSpecifier,
+	parseLocalSpecifier,
 } from "../lib/index.js";
 import {
 	listLockfileGitHubPackages,
+	listLockfileLocalPackages,
 	listLockfileSkills,
 	removeFromLockfile,
 	removeGitHubFromLockfile,
+	removeLocalFromLockfile,
 } from "../lockfile.js";
 import {
 	readManifest,
 	removeDependency,
 	removeGitHubDependency,
+	removeLocalDependency,
 } from "../manifest.js";
 import { getGitHubSkillPath, removeAgentSymlinks } from "../symlinks.js";
 
@@ -36,12 +42,14 @@ export async function remove(nameOrSpecifier: string): Promise<void> {
 		const agents = getAvailableAgents(agentConfigs);
 
 		// Determine type of specifier
-		if (isGitHubSpecifier(nameOrSpecifier)) {
+		if (isLocalSpecifier(nameOrSpecifier)) {
+			await removeLocal(nameOrSpecifier, agents, agentConfigs);
+		} else if (isGitHubSpecifier(nameOrSpecifier)) {
 			await removeGitHub(nameOrSpecifier, agents, agentConfigs);
 		} else if (nameOrSpecifier.startsWith("@user/")) {
 			await removeRegistry(nameOrSpecifier, agents, agentConfigs);
 		} else {
-			// Short name - try to find in either registry or GitHub skills
+			// Short name - try to find in registry, GitHub, or local skills
 			await removeByShortName(nameOrSpecifier, agents, agentConfigs);
 		}
 	} catch (error) {
@@ -157,7 +165,62 @@ async function removeGitHub(
 }
 
 /**
- * Remove a skill by short name (searches both registry and GitHub skills).
+ * Remove a local skill by specifier.
+ */
+async function removeLocal(
+	specifier: string,
+	agents: string[],
+	agentConfigs?: Record<string, { skillsDir: string }>,
+): Promise<void> {
+	const parsed = parseLocalSpecifier(specifier);
+	if (!parsed) {
+		console.error(`Error: Invalid local specifier: ${specifier}`);
+		process.exit(1);
+	}
+
+	console.log(`Removing ${specifier}...`);
+
+	// Remove from lockfile
+	const removedFromLockfile = await removeLocalFromLockfile(specifier);
+
+	// Remove from pspm.json localDependencies
+	const removedFromManifest = await removeLocalDependency(specifier);
+
+	if (!removedFromLockfile && !removedFromManifest) {
+		console.error(`Error: ${specifier} not found in lockfile or pspm.json`);
+		process.exit(1);
+	}
+
+	// Get skill name from lockfile or parse from path
+	const localSkills = await listLockfileLocalPackages();
+	const foundLocal = localSkills.find((s) => s.specifier === specifier);
+	const skillName =
+		foundLocal?.entry.name ||
+		parsed.path.split("/").filter(Boolean).pop() ||
+		"unknown";
+
+	// Remove symlinks from all agents
+	await removeAgentSymlinks(skillName, {
+		agents,
+		projectRoot: process.cwd(),
+		agentConfigs,
+	});
+
+	// Remove from disk (the symlink in _local)
+	const skillsDir = getSkillsDir();
+	const symlinkPath = join(skillsDir, "_local", skillName);
+
+	try {
+		await rm(symlinkPath, { force: true });
+	} catch {
+		// Ignore errors if symlink doesn't exist
+	}
+
+	console.log(`Removed ${specifier}`);
+}
+
+/**
+ * Remove a skill by short name (searches registry, GitHub, and local skills).
  */
 async function removeByShortName(
 	shortName: string,
@@ -186,6 +249,15 @@ async function removeByShortName(
 
 	if (foundGitHub) {
 		await removeGitHub(foundGitHub.specifier, agents, agentConfigs);
+		return;
+	}
+
+	// Try to find in local skills
+	const localSkills = await listLockfileLocalPackages();
+	const foundLocal = localSkills.find((s) => s.entry.name === shortName);
+
+	if (foundLocal) {
+		await removeLocal(foundLocal.specifier, agents, agentConfigs);
 		return;
 	}
 

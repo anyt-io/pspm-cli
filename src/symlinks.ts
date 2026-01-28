@@ -191,6 +191,16 @@ export function getGitHubSkillPath(
 }
 
 /**
+ * Get the source path for a local skill within .pspm/skills/.
+ *
+ * @param skillName - The skill name (last segment of path)
+ * @returns Relative path from project root (e.g., ".pspm/skills/_local/my-skill")
+ */
+export function getLocalSkillPath(skillName: string): string {
+	return `.pspm/skills/_local/${skillName}`;
+}
+
+/**
  * Check which agents have symlinks for a given skill.
  *
  * @param skillName - Name of the skill (symlink name)

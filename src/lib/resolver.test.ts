@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+	computeInstallOrder,
 	type DependencyGraph,
 	type DependencyNode,
-	type ResolutionError,
-	type VersionConflict,
-	computeInstallOrder,
 	formatResolutionErrors,
 	formatVersionConflicts,
+	type ResolutionError,
 	topologicalSort,
+	type VersionConflict,
 } from "./resolver.js";
 
 // Helper to create a minimal DependencyNode

@@ -7,12 +7,18 @@ import {
 } from "./config";
 import type {
 	GitHubLockfileEntry,
+	LocalLockfileEntry,
 	PspmLockfile,
 	PspmLockfileEntry,
 } from "./lib/index.js";
 
 // Re-export types for backward compatibility
-export type { GitHubLockfileEntry, PspmLockfile, PspmLockfileEntry };
+export type {
+	GitHubLockfileEntry,
+	LocalLockfileEntry,
+	PspmLockfile,
+	PspmLockfileEntry,
+};
 
 /**
  * Check if legacy lockfile exists (skill-lock.json)
@@ -116,7 +122,7 @@ export async function readLockfile(): Promise<PspmLockfile | null> {
 }
 
 /**
- * Write the lockfile (v4 format if any package has dependencies, otherwise v3)
+ * Write the lockfile (v5 if local packages, v4 if dependencies, otherwise v3)
  */
 export async function writeLockfile(lockfile: PspmLockfile): Promise<void> {
 	const lockfilePath = getLockfilePath();
@@ -128,7 +134,18 @@ export async function writeLockfile(lockfile: PspmLockfile): Promise<void> {
 	const hasDependencies = Object.values(packages).some(
 		(pkg) => pkg.dependencies && Object.keys(pkg.dependencies).length > 0,
 	);
-	const version = hasDependencies ? 4 : 3;
+
+	// Check if there are any local packages
+	const hasLocalPackages =
+		lockfile.localPackages && Object.keys(lockfile.localPackages).length > 0;
+
+	// Determine version: v5 if local packages, v4 if deps, v3 otherwise
+	let version: 3 | 4 | 5 = 3;
+	if (hasLocalPackages) {
+		version = 5;
+	} else if (hasDependencies) {
+		version = 4;
+	}
 
 	const normalized: PspmLockfile = {
 		lockfileVersion: version,
@@ -142,6 +159,11 @@ export async function writeLockfile(lockfile: PspmLockfile): Promise<void> {
 		Object.keys(lockfile.githubPackages).length > 0
 	) {
 		normalized.githubPackages = lockfile.githubPackages;
+	}
+
+	// Only include localPackages if there are entries
+	if (hasLocalPackages) {
+		normalized.localPackages = lockfile.localPackages;
 	}
 
 	await writeFile(lockfilePath, `${JSON.stringify(normalized, null, 2)}\n`);
@@ -303,5 +325,62 @@ export async function listLockfileGitHubPackages(): Promise<
 	return Object.entries(lockfile.githubPackages).map(([specifier, entry]) => ({
 		specifier,
 		entry: entry as GitHubLockfileEntry,
+	}));
+}
+
+// =============================================================================
+// Local Package Support
+// =============================================================================
+
+/**
+ * Add a local package to the lockfile
+ */
+export async function addLocalToLockfile(
+	specifier: string,
+	entry: LocalLockfileEntry,
+): Promise<void> {
+	let lockfile = await readLockfile();
+	if (!lockfile) {
+		lockfile = await createEmptyLockfile();
+	}
+
+	if (!lockfile.localPackages) {
+		lockfile.localPackages = {};
+	}
+
+	lockfile.localPackages[specifier] = entry;
+	await writeLockfile(lockfile);
+}
+
+/**
+ * Remove a local package from the lockfile
+ */
+export async function removeLocalFromLockfile(
+	specifier: string,
+): Promise<boolean> {
+	const lockfile = await readLockfile();
+	if (!lockfile?.localPackages?.[specifier]) {
+		return false;
+	}
+
+	delete lockfile.localPackages[specifier];
+	await writeLockfile(lockfile);
+	return true;
+}
+
+/**
+ * List all local packages in the lockfile
+ */
+export async function listLockfileLocalPackages(): Promise<
+	Array<{ specifier: string; entry: LocalLockfileEntry }>
+> {
+	const lockfile = await readLockfile();
+	if (!lockfile?.localPackages) {
+		return [];
+	}
+
+	return Object.entries(lockfile.localPackages).map(([specifier, entry]) => ({
+		specifier,
+		entry: entry as LocalLockfileEntry,
 	}));
 }

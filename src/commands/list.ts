@@ -2,7 +2,7 @@
  * List command - Show installed skills.
  *
  * Displays:
- * - Registry and GitHub skills
+ * - Registry, GitHub, and local skills
  * - Source type
  * - Version / commit info
  * - Linked agent paths
@@ -14,13 +14,19 @@ import { getAvailableAgents, resolveAgentConfig } from "../agents.js";
 import {
 	type GitHubLockfileEntry,
 	getGitHubSkillName,
+	type LocalLockfileEntry,
 	parseGitHubSpecifier,
 } from "../lib/index.js";
-import { listLockfileGitHubPackages, listLockfileSkills } from "../lockfile.js";
+import {
+	listLockfileGitHubPackages,
+	listLockfileLocalPackages,
+	listLockfileSkills,
+} from "../lockfile.js";
 import { readManifest } from "../manifest.js";
 import {
 	getGitHubSkillPath,
 	getLinkedAgents,
+	getLocalSkillPath,
 	getRegistrySkillPath,
 } from "../symlinks.js";
 
@@ -32,12 +38,13 @@ interface SkillListItem {
 	name: string;
 	fullName: string;
 	version: string;
-	source: "registry" | "github";
+	source: "registry" | "github" | "local";
 	sourcePath: string;
 	status: "installed" | "missing";
 	linkedAgents: string[];
 	gitRef?: string;
 	gitCommit?: string;
+	localPath?: string;
 }
 
 export async function list(options: ListOptions): Promise<void> {
@@ -134,6 +141,42 @@ export async function list(options: ListOptions): Promise<void> {
 			});
 		}
 
+		// Add local skills
+		const localSkills = await listLockfileLocalPackages();
+		for (const { specifier, entry } of localSkills) {
+			const localEntry = entry as LocalLockfileEntry;
+			const skillName = localEntry.name;
+			const sourcePath = getLocalSkillPath(skillName);
+			const absolutePath = join(projectRoot, sourcePath);
+
+			// Check if installed on disk (the symlink exists)
+			let status: "installed" | "missing" = "installed";
+			try {
+				await access(absolutePath);
+			} catch {
+				status = "missing";
+			}
+
+			// Check which agents have symlinks
+			const linkedAgents = await getLinkedAgents(
+				skillName,
+				availableAgents,
+				projectRoot,
+				agentConfigs,
+			);
+
+			skills.push({
+				name: skillName,
+				fullName: specifier,
+				version: "local",
+				source: "local",
+				sourcePath,
+				status,
+				linkedAgents,
+				localPath: localEntry.resolvedPath,
+			});
+		}
+
 		if (skills.length === 0) {
 			console.log("No skills installed.");
 			return;
@@ -150,11 +193,17 @@ export async function list(options: ListOptions): Promise<void> {
 			// Header line: name@version (source)
 			if (skill.source === "registry") {
 				console.log(`  ${skill.fullName}@${skill.version} (registry)`);
-			} else {
+			} else if (skill.source === "github") {
 				const refInfo = skill.gitRef
 					? `${skill.gitRef}@${skill.gitCommit?.slice(0, 7)}`
 					: skill.version;
 				console.log(`  ${skill.fullName} (${refInfo})`);
+			} else {
+				// local
+				console.log(`  ${skill.fullName} [local]`);
+				if (skill.localPath) {
+					console.log(`    Path: ${skill.localPath}`);
+				}
 			}
 
 			// Status line if missing
@@ -176,9 +225,11 @@ export async function list(options: ListOptions): Promise<void> {
 		// Summary
 		const registryCount = skills.filter((s) => s.source === "registry").length;
 		const githubCount = skills.filter((s) => s.source === "github").length;
+		const localCount = skills.filter((s) => s.source === "local").length;
 		const parts: string[] = [];
 		if (registryCount > 0) parts.push(`${registryCount} registry`);
 		if (githubCount > 0) parts.push(`${githubCount} github`);
+		if (localCount > 0) parts.push(`${localCount} local`);
 
 		console.log(`\nTotal: ${skills.length} skill(s) (${parts.join(", ")})`);
 	} catch (error) {

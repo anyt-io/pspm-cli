@@ -112,6 +112,24 @@ export interface PspmManifest {
 	githubDependencies?: Record<string, string>;
 
 	/**
+	 * Local skill dependencies (format: "file:../path": "*")
+	 *
+	 * Used for local development and testing before publishing.
+	 * Creates symlinks for instant updates during development.
+	 *
+	 * @example
+	 * ```json
+	 * {
+	 *   "localDependencies": {
+	 *     "file:../my-local-skill": "*",
+	 *     "file:/absolute/path/to/skill": "*"
+	 *   }
+	 * }
+	 * ```
+	 */
+	localDependencies?: Record<string, string>;
+
+	/**
 	 * Custom agent configuration overrides.
 	 * Built-in agents (claude-code, cursor, codex) have default configs.
 	 * Custom agents can also be defined here.
@@ -212,6 +230,7 @@ export function normalizeManifest(manifest: PspmManifest): PspmManifest {
 		files: manifest.files ?? [...DEFAULT_SKILL_FILES],
 		dependencies: manifest.dependencies ?? {},
 		githubDependencies: manifest.githubDependencies ?? {},
+		localDependencies: manifest.localDependencies ?? {},
 		private: manifest.private ?? false,
 	};
 }

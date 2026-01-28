@@ -7,16 +7,19 @@
  * - v2 uses "pspm-lock.json" with `packages` key.
  * - v3 adds `githubPackages` key for GitHub dependencies.
  * - v4 adds `dependencies` field to entries for recursive resolution.
+ * - v5 adds `localPackages` key for local development dependencies.
  */
 export interface PspmLockfile {
 	/** Lockfile format version */
-	lockfileVersion: 1 | 2 | 3 | 4;
+	lockfileVersion: 1 | 2 | 3 | 4 | 5;
 	/** Registry URL used for resolution */
 	registryUrl: string;
 	/** Installed packages from registry (v2+ format) */
 	packages?: Record<string, PspmLockfileEntry>;
 	/** Installed packages from GitHub (v3+ format) */
 	githubPackages?: Record<string, GitHubLockfileEntry>;
+	/** Installed packages from local directories (v5+ format) */
+	localPackages?: Record<string, LocalLockfileEntry>;
 	/** Installed skills (v1 format, deprecated) */
 	skills?: Record<string, PspmLockfileEntry>;
 }
@@ -46,4 +49,19 @@ export interface GitHubLockfileEntry extends PspmLockfileEntry {
 	gitCommit: string;
 	/** Original Git ref (branch, tag, or "latest") */
 	gitRef: string;
+}
+
+/**
+ * Lockfile entry for a local package.
+ * Key format in localPackages: "file:../path" or "file:/absolute/path"
+ */
+export interface LocalLockfileEntry {
+	/** Always "local" for local packages */
+	version: "local";
+	/** Original path from the specifier (relative or absolute) */
+	path: string;
+	/** Resolved absolute path to the local skill directory */
+	resolvedPath: string;
+	/** Skill name (last segment of path) */
+	name: string;
 }
