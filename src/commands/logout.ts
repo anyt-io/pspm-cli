@@ -1,4 +1,4 @@
-import { clearCredentials, isLoggedIn } from "../config.js";
+import { clearCredentials, isLoggedIn } from "@/config";
 
 export async function logout(): Promise<void> {
 	try {

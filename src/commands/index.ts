@@ -1,20 +1,21 @@
-export { type AccessOptions, access } from "./access.js";
-export { type AddOptions, add } from "./add.js";
+export { type AccessOptions, access } from "./access";
+export { type AddOptions, add } from "./add";
 export {
 	type ConfigInitOptions,
 	configInit,
 	configShow,
-} from "./config/index.js";
-export { type DeprecateOptions, deprecate } from "./deprecate.js";
-export { type InitOptions, init } from "./init.js";
-export { type InstallOptions, install } from "./install.js";
-export { type LinkOptions, link } from "./link.js";
-export { type ListOptions, list } from "./list.js";
-export { type LoginOptions, login } from "./login.js";
-export { logout } from "./logout.js";
-export { type MigrateOptions, migrate } from "./migrate.js";
-export { type PublishOptions, publish } from "./publish.js";
-export { remove } from "./remove.js";
-export { type UnpublishOptions, unpublish } from "./unpublish.js";
-export { type UpdateOptions, update } from "./update.js";
-export { whoami } from "./whoami.js";
+} from "./config/index";
+export { type DeprecateOptions, deprecate } from "./deprecate";
+export { type InitOptions, init } from "./init";
+export { type InstallOptions, install } from "./install";
+export { type LinkOptions, link } from "./link";
+export { type ListOptions, list } from "./list";
+export { type LoginOptions, login } from "./login";
+export { logout } from "./logout";
+export { type MigrateOptions, migrate } from "./migrate";
+export { type PublishOptions, publish } from "./publish";
+export { remove } from "./remove";
+export { type UnpublishOptions, unpublish } from "./unpublish";
+export { type UpdateOptions, update } from "./update";
+export { type VersionBump, type VersionOptions, version } from "./version";
+export { whoami } from "./whoami";

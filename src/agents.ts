@@ -5,7 +5,7 @@
  */
 
 import { checkbox } from "@inquirer/prompts";
-import type { AgentConfig, BuiltInAgent } from "./lib/index.js";
+import type { AgentConfig, BuiltInAgent } from "./lib/index";
 
 /**
  * Agent metadata for display purposes.

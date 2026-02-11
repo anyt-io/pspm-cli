@@ -36,6 +36,7 @@ Commands:
   install|i [options] [specifiers...]        Install skills from lockfile, or add and install specific packages
   link [options]                             Recreate agent symlinks without reinstalling
   update [options]                           Update all skills to latest compatible versions
+  version <bump>                             Bump package version (major, minor, patch)
   publish [options]                          Publish current directory as a skill
   unpublish [options] <specifier>            Remove a published skill version (only within 72 hours of publishing)
   access [options] [specifier]               Change package visibility (public/private)
@@ -77,7 +78,7 @@ pspm whoami
 # Output:
 #   Username: myuser
 #   User ID: user_123
-#   Registry: https://pspm.dev
+#   Registry: https://registry.pspm.dev
 ```
 
 ## Configuration
@@ -92,7 +93,7 @@ pspm config show
 # Output:
 #   Resolved Configuration:
 #
-#     Registry URL:   https://pspm.dev
+#     Registry URL:   https://registry.pspm.dev
 #     API Key:        ***
 #     Username:       myuser
 #
@@ -157,6 +158,11 @@ pspm add github:owner/repo                  # Entire repo, default branch
 pspm add github:owner/repo@main             # Entire repo, specific branch
 pspm add github:owner/repo/path/to/skill    # Subdirectory, default branch
 pspm add github:owner/repo/path@v1.0.0      # Subdirectory with tag/ref
+
+# Local directory specifiers (for development):
+pspm add file:../my-skill                   # Relative path
+pspm add file:./local-skill                 # Current directory relative
+pspm add file:/absolute/path/to/skill       # Absolute path
 
 # Add multiple skills at once:
 pspm add @user/alice/skill1 @user/bob/skill2
@@ -234,6 +240,30 @@ pspm link -y                          # Skip agent selection prompt
 pspm update
 pspm update --dry-run    # Preview updates without applying
 ```
+
+## Versioning
+
+### Bump Version
+
+Bump the package version in `pspm.json` without publishing (similar to `npm version`):
+
+```bash
+pspm version <bump>
+
+# Bump types:
+pspm version major      # 1.0.0 → 2.0.0
+pspm version minor      # 1.0.0 → 1.1.0
+pspm version patch      # 1.0.0 → 1.0.1
+
+# Options:
+pspm version patch --dry-run   # Preview what would change
+```
+
+The command:
+- Reads the current version from `pspm.json`
+- Increments the version according to semver rules
+- Writes the updated version back to `pspm.json`
+- Outputs the new version (e.g., `v1.0.1`)
 
 ## Publishing
 
@@ -313,7 +343,7 @@ INI format configuration file:
 ```ini
 ; PSPM Configuration
 
-registry = https://pspm.dev
+registry = https://registry.pspm.dev
 authToken = sk_...
 username = myuser
 
@@ -345,7 +375,16 @@ Package manifest file (created with `pspm init`):
   "version": "1.0.0",
   "description": "A helpful skill for...",
   "author": "Your Name",
-  "files": ["pspm.json", "SKILL.md", "runtime", "scripts", "data"]
+  "files": ["pspm.json", "SKILL.md", "runtime", "scripts", "data"],
+  "dependencies": {
+    "@user/other/skill": "^1.0.0"
+  },
+  "githubDependencies": {
+    "github:owner/repo/skills/example": "main"
+  },
+  "localDependencies": {
+    "file:../my-local-skill": "*"
+  }
 }
 ```
 
@@ -353,12 +392,12 @@ Package manifest file (created with `pspm init`):
 
 ```json
 {
-  "lockfileVersion": 3,
-  "registryUrl": "https://pspm.dev",
+  "lockfileVersion": 4,
+  "registryUrl": "https://registry.pspm.dev",
   "packages": {
     "@user/bsheng/vite_slides": {
       "version": "2.0.0",
-      "resolved": "https://pspm.dev/...",
+      "resolved": "https://registry.pspm.dev/...",
       "integrity": "sha256-abc123..."
     }
   },
@@ -369,6 +408,14 @@ Package manifest file (created with `pspm init`):
       "integrity": "sha256-...",
       "gitCommit": "abc1234567890...",
       "gitRef": "main"
+    }
+  },
+  "localPackages": {
+    "file:../my-local-skill": {
+      "version": "local",
+      "path": "../my-local-skill",
+      "resolvedPath": "/absolute/path/to/my-local-skill",
+      "name": "my-local-skill"
     }
   }
 }
@@ -402,10 +449,12 @@ project/
 │   ├── skills/          # Installed skills
 │   │   ├── {username}/  # Registry skills
 │   │   │   └── {skillname}/
-│   │   └── _github/     # GitHub skills
-│   │       └── {owner}/
-│   │           └── {repo}/
-│   │               └── {path}/
+│   │   ├── _github/     # GitHub skills
+│   │   │   └── {owner}/
+│   │   │       └── {repo}/
+│   │   │           └── {path}/
+│   │   └── _local/      # Local skill symlinks
+│   │       └── {name} -> ../../../path/to/local/skill
 │   └── cache/           # Tarball cache
 ├── .claude/
 │   └── skills/          # Symlinks for claude-code agent
@@ -426,6 +475,31 @@ export PSPM_API_KEY=sk_ci_key
 
 # Install with frozen lockfile (fails if lockfile missing or outdated)
 pspm install --frozen-lockfile
+```
+
+### Local Development Workflow
+
+Use local dependencies to develop and test skills before publishing:
+
+```bash
+# Add a local skill for development
+pspm add file:../my-skill
+
+# The skill is symlinked, so changes are instant
+# No need to reinstall after editing the local skill
+
+# When ready to publish
+cd ../my-skill
+pspm publish
+```
+
+In your `pspm.json`:
+```json
+{
+  "localDependencies": {
+    "file:../my-local-skill": "*"
+  }
+}
 ```
 
 ### Publishing Workflow

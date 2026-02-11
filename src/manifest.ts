@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { PspmManifest } from "./lib/index.js";
+import type { PspmManifest } from "./lib/index";
 
 /**
  * Get the manifest file path (pspm.json in current directory)
@@ -156,6 +156,63 @@ export async function removeGitHubDependency(
 	}
 
 	delete manifest.githubDependencies[specifier];
+	await writeManifest(manifest);
+	return true;
+}
+
+// =============================================================================
+// Local Dependency Support
+// =============================================================================
+
+/**
+ * Get all local dependencies from the manifest
+ * Returns empty object if manifest doesn't exist or has no local dependencies
+ */
+export async function getLocalDependencies(): Promise<Record<string, string>> {
+	const manifest = await readManifest();
+	return manifest?.localDependencies ?? {};
+}
+
+/**
+ * Add a local dependency to the manifest
+ * Creates the manifest if it doesn't exist
+ *
+ * @param specifier - Local specifier (e.g., "file:../my-skill")
+ * @param version - Always "*" for local packages
+ */
+export async function addLocalDependency(
+	specifier: string,
+	version = "*",
+): Promise<void> {
+	const manifest = await ensureManifest();
+
+	// Initialize localDependencies if not present
+	if (!manifest.localDependencies) {
+		manifest.localDependencies = {};
+	}
+
+	// Add or update the dependency
+	manifest.localDependencies[specifier] = version;
+
+	await writeManifest(manifest);
+}
+
+/**
+ * Remove a local dependency from the manifest
+ *
+ * @param specifier - Local specifier (e.g., "file:../my-skill")
+ * @returns true if dependency was removed, false if it didn't exist
+ */
+export async function removeLocalDependency(
+	specifier: string,
+): Promise<boolean> {
+	const manifest = await readManifest();
+
+	if (!manifest?.localDependencies?.[specifier]) {
+		return false;
+	}
+
+	delete manifest.localDependencies[specifier];
 	await writeManifest(manifest);
 	return true;
 }

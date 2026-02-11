@@ -36,6 +36,25 @@ interface ApiErrorResponse {
 }
 
 /**
+ * Get a human-readable description for common HTTP status codes
+ */
+function getHttpStatusDescription(status: number): string {
+	const descriptions: Record<number, string> = {
+		400: "Bad Request - The request was malformed",
+		401: "Unauthorized - Please run 'pspm login' first",
+		403: "Forbidden - You don't have permission for this action",
+		404: "Not Found - The endpoint or resource doesn't exist",
+		409: "Conflict - The resource already exists or there's a version conflict",
+		422: "Validation Error - The request data is invalid",
+		429: "Too Many Requests - Please slow down and try again",
+		500: "Internal Server Error - Something went wrong on the server",
+		502: "Bad Gateway - The server is temporarily unavailable",
+		503: "Service Unavailable - The server is temporarily unavailable",
+	};
+	return descriptions[status] || `HTTP Error ${status}`;
+}
+
+/**
  * Extract a human-readable error message from an API response
  * Handles both ApiError and ValidationError types
  */
@@ -53,8 +72,21 @@ export function extractApiErrorMessage(
 		);
 	}
 
-	if (!errorData) {
-		return `${fallbackMessage} (HTTP ${response.status})`;
+	// Handle cases where errorData is a string (like "Not Found" from 404)
+	if (typeof errorData === "string") {
+		if (response.status === 404) {
+			return `${fallbackMessage}: ${getHttpStatusDescription(404)}\nThe registry endpoint may be unavailable or misconfigured.`;
+		}
+		return `${fallbackMessage}: ${errorData} (HTTP ${response.status})`;
+	}
+
+	// Handle empty or null response
+	if (!errorData || typeof errorData !== "object") {
+		const statusDesc = getHttpStatusDescription(response.status);
+		if (response.status === 404) {
+			return `${fallbackMessage}: ${statusDesc}\nCheck that the registry URL is correct in your config.`;
+		}
+		return `${fallbackMessage}: ${statusDesc}`;
 	}
 
 	// Start with the message field or fallback
@@ -82,6 +114,11 @@ export function extractApiErrorMessage(
 	// Add error code prefix if available and not already in message
 	if (errorData.code && !errorMessage.includes(errorData.code)) {
 		errorMessage = `[${errorData.code}] ${errorMessage}`;
+	}
+
+	// Add HTTP status context for non-200 responses
+	if (response.status >= 400) {
+		errorMessage += ` (HTTP ${response.status})`;
 	}
 
 	// Add request ID for debugging

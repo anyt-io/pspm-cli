@@ -21,8 +21,9 @@ import {
 	remove,
 	unpublish,
 	update,
+	version as versionCommand,
 	whoami,
-} from "./commands/index.js";
+} from "./commands/index";
 
 // Read version from package.json
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -209,6 +210,22 @@ program
 // =============================================================================
 // Publishing commands
 // =============================================================================
+
+program
+	.command("version <bump>")
+	.description("Bump package version (major, minor, patch)")
+	.option("--dry-run", "Show what would be changed without writing")
+	.action(async (bump: string, options) => {
+		const validBumps = ["major", "minor", "patch"];
+		if (!validBumps.includes(bump)) {
+			console.error(`Error: Invalid version bump "${bump}".`);
+			console.error("Must be one of: major, minor, patch");
+			process.exit(1);
+		}
+		await versionCommand(bump as "major" | "minor" | "patch", {
+			dryRun: options.dryRun,
+		});
+	});
 
 program
 	.command("publish")

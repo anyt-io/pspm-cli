@@ -1,7 +1,7 @@
-import { configure, deleteSkill, deleteSkillVersion } from "../api-client.js";
-import { getRegistryUrl, requireApiKey } from "../config.js";
-import { extractApiErrorMessage } from "../errors.js";
-import { parseSkillSpecifier } from "../lib/index.js";
+import { configure, deleteSkill, deleteSkillVersion } from "@/api-client";
+import { getRegistryUrl, requireApiKey } from "@/config";
+import { extractApiErrorMessage } from "@/errors";
+import { parseSkillSpecifier } from "@/lib/index";
 
 export interface UnpublishOptions {
 	force?: boolean;
@@ -40,7 +40,7 @@ export async function unpublish(
 				process.exit(1);
 			}
 
-			const response = await deleteSkillVersion(name, versionRange);
+			const response = await deleteSkillVersion(username, name, versionRange);
 			if (response.status !== 200) {
 				const errorMessage = extractApiErrorMessage(
 					response,
@@ -61,7 +61,7 @@ export async function unpublish(
 				process.exit(1);
 			}
 
-			const response = await deleteSkill(name);
+			const response = await deleteSkill(username, name);
 			if (response.status !== 200) {
 				const errorMessage = extractApiErrorMessage(
 					response,

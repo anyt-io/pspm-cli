@@ -2,7 +2,7 @@ import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import * as ini from "ini";
-import { NotLoggedInError } from "./errors.js";
+import { NotLoggedInError } from "./errors";
 
 // =============================================================================
 // Types
@@ -76,7 +76,7 @@ interface LegacyConfigV2 {
 // Constants
 // =============================================================================
 
-const DEFAULT_REGISTRY_URL = "https://pspm.dev";
+const DEFAULT_REGISTRY_URL = "https://registry.pspm.dev";
 
 /**
  * Get the user config file path (~/.pspmrc)

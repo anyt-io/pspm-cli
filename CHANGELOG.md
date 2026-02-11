@@ -5,6 +5,121 @@ All notable changes to the PSPM CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-02-10
+
+### Changed
+
+- Updated skill download endpoint to use OpenAPI route for improved type safety and consistency
+
+## [0.5.0] - 2026-02-10
+
+### Added
+
+- **Public skill exploration**: New `/-/explore` endpoint support for browsing public skills without authentication, with search, sorting (downloads/recent/name), and pagination
+- **SKILL.md publish requirement**: CLI now validates that `SKILL.md` exists before publishing, with clear guidance to create one
+- **API key permissions**: SDK types now support granular API key permissions (`read`, `write`, `delete`)
+- **Skill detail with documentation**: Get skill endpoint now returns `skillMd` content from the latest published version
+
+### Changed
+
+- **Route structure redesign**: All API routes restructured with `/@user/{username}/` prefix for resource routes and `/-/` prefix for action routes (publish, mine, me, explore)
+- **Username required in operations**: Deprecate, undeprecate, access, delete, and unpublish commands now pass username explicitly in API calls
+- **Reduced tarball max size**: Publish size limit tightened in SDK schema validation
+- **Updated all dependencies**: Bumped all outdated packages including Orval 8.0.3 → 8.2.0
+
+### Fixed
+
+- **Username resolution in access command**: Properly resolves username from specifier or config with helpful error messages
+
+## [0.4.1] - 2026-02-09
+
+### Changed
+
+- Updated all outdated dependencies
+
+### Added
+
+- Store SKILL.md content in database and display on package detail page
+
+## [0.4.0] - 2026-02-09
+
+### Added
+
+- **Publish size limit (10MB)**: Packages exceeding 10MB are rejected with actionable suggestions
+  - Client-side validation catches oversized packages before upload
+  - Server-side schema validation updated from 50MB to 10MB
+  - Helpful error messages suggest using `files` field, `.pspmignore`, or removing build artifacts
+
+- **Publish preview with confirmation**: Users now see a full preview before publishing
+  - Displays tarball contents with file sizes (sorted by size)
+  - Shows package size, unpacked size, file count, and integrity hashes
+  - Requires explicit confirmation (`y/N`) before uploading to registry
+
+## [0.3.4] - 2026-01-29
+
+### Added
+
+- **`version` command**: Bump package version in `pspm.json` without publishing (like `npm version`)
+  - `pspm version major` - Bump major version (1.0.0 → 2.0.0)
+  - `pspm version minor` - Bump minor version (1.0.0 → 1.1.0)
+  - `pspm version patch` - Bump patch version (1.0.0 → 1.0.1)
+  - `pspm version patch --dry-run` - Preview changes without writing
+
+- **Visibility support for publish command**: Set package visibility during publish
+  - `pspm publish --access public` - Publish and make public in one step
+  - `pspm publish --access private` - Explicitly publish as private
+
+- **Dependency visibility in publish**: Published packages now include their dependencies in the manifest
+
+### Fixed
+
+- **Registry subdomain compatibility**: SDK now correctly handles registry URLs with subdomains
+- **Improved CLI error messages**: Better extraction and display of API error details
+
+## [0.3.3] - 2026-01-28
+
+### Fixed
+
+- Strip registry subdomain for web app and server URLs
+
+## [0.3.2] - 2026-01-28
+
+### Added
+
+- Registry subdomain support for multi-tenant deployments
+
+## [0.3.1] - 2026-01-27
+
+### Changed
+
+- Version bump for npm publish
+
+## [0.3.0] - 2026-01-27
+
+### Added
+
+- **`.pspmignore` support for publish command**: Control which files are excluded when publishing or packing skill packages
+  - If `.pspmignore` exists, use it for ignore patterns (like `.npmignore`)
+  - Otherwise, fall back to `.gitignore` if present
+  - Always ignores `node_modules`, `.git`, and `.pspm-publish` regardless
+  - Displays which ignore file is being used during publish
+
+- **Local directory support (file: protocol)**: Install skills from local directories for development and testing
+  - `pspm add file:../path/to/skill` - Install from local directory
+  - `pspm add ../my-skill` - Also works without the `file:` prefix
+  - Creates symlinks in `.pspm/skills/_local/{name}` for instant updates
+  - `localDependencies` field in `pspm.json` for local packages
+  - `localPackages` in lockfile (v4) tracks installed local packages
+  - Validates that directory exists and contains SKILL.md or pspm.json
+  - Provides helpful error messages: "Directory not found", "Not a valid skill directory"
+
+### Fixed
+
+- **Improved error messages for `access` command**: Now provides specific feedback for different specifier types
+  - GitHub specifiers explain that visibility only applies to registry packages
+  - Local file specifiers explain they are not registry packages
+  - Invalid registry specifiers show examples of correct format
+
 ## [0.2.0] - 2026-01-23
 
 ### Changed

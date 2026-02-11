@@ -1,5 +1,5 @@
-import { whoamiRequest } from "../api-client.js";
-import { getRegistryUrl, requireApiKey, resolveConfig } from "../config.js";
+import { whoamiRequest } from "@/api-client";
+import { getRegistryUrl, requireApiKey, resolveConfig } from "@/config";
 
 export async function whoami(): Promise<void> {
 	try {

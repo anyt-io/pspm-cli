@@ -100,6 +100,7 @@ export async function whoamiRequest(
  * Deprecate a skill version
  */
 export async function deprecateSkillVersion(
+	username: string,
 	skillName: string,
 	version: string,
 	message: string,
@@ -111,7 +112,7 @@ export async function deprecateSkillVersion(
 
 	try {
 		const response = await fetch(
-			`${config.baseUrl}/api/skills/${skillName}/${version}/deprecate`,
+			`${config.baseUrl}/api/skills/@user/${username}/${skillName}/versions/${version}/deprecate`,
 			{
 				method: "POST",
 				headers: {
@@ -141,6 +142,7 @@ export async function deprecateSkillVersion(
  * Remove deprecation from a skill version
  */
 export async function undeprecateSkillVersion(
+	username: string,
 	skillName: string,
 	version: string,
 ): Promise<{ status: number; data?: unknown; error?: string }> {
@@ -151,7 +153,7 @@ export async function undeprecateSkillVersion(
 
 	try {
 		const response = await fetch(
-			`${config.baseUrl}/api/skills/${skillName}/${version}/deprecate`,
+			`${config.baseUrl}/api/skills/@user/${username}/${skillName}/versions/${version}/deprecate`,
 			{
 				method: "DELETE",
 				headers: {
@@ -179,6 +181,7 @@ export async function undeprecateSkillVersion(
  * Change skill visibility (public/private)
  */
 export async function changeSkillAccess(
+	username: string,
 	skillName: string,
 	input: { visibility: "public" | "private" },
 ): Promise<{
@@ -201,7 +204,7 @@ export async function changeSkillAccess(
 
 	try {
 		const response = await fetch(
-			`${config.baseUrl}/api/skills/${skillName}/access`,
+			`${config.baseUrl}/api/skills/@user/${username}/${skillName}/access`,
 			{
 				method: "POST",
 				headers: {

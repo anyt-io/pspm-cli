@@ -1,2 +1,2 @@
-export { type ConfigInitOptions, configInit } from "./init.js";
-export { configShow } from "./show.js";
+export { type ConfigInitOptions, configInit } from "./init";
+export { configShow } from "./show";

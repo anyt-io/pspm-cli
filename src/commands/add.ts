@@ -1,18 +1,14 @@
-import { mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { parseAgentArg, promptForAgents } from "../agents.js";
-import {
-	configure,
-	getSkillVersion,
-	listSkillVersions,
-} from "../api-client.js";
-import { getSkillsDir, getTokenForRegistry, resolveConfig } from "../config.js";
-import { extractApiErrorMessage } from "../errors.js";
+import { mkdir, rm, stat, symlink } from "node:fs/promises";
+import { basename, dirname, join, relative, resolve } from "node:path";
+import { parseAgentArg, promptForAgents } from "@/agents";
+import { configure, getSkillVersion, listSkillVersions } from "@/api-client";
+import { getSkillsDir, getTokenForRegistry, resolveConfig } from "@/config";
+import { extractApiErrorMessage } from "@/errors";
 import {
 	downloadGitHubPackage,
 	extractGitHubPackage,
 	getGitHubDisplayName,
-} from "../github.js";
+} from "@/github";
 import {
 	calculateIntegrity,
 	type DependencyNode,
@@ -20,25 +16,63 @@ import {
 	type GitHubLockfileEntry,
 	getGitHubSkillName,
 	isGitHubSpecifier,
+	type LocalLockfileEntry,
 	MAX_DEPENDENCY_DEPTH,
 	parseGitHubSpecifier,
 	parseSkillSpecifier,
 	printResolutionErrors,
 	resolveRecursive,
 	resolveVersion,
-} from "../lib/index.js";
-import { addGitHubToLockfile, addToLockfileWithDeps } from "../lockfile.js";
+} from "@/lib/index";
+import {
+	addGitHubToLockfile,
+	addLocalToLockfile,
+	addToLockfileWithDeps,
+} from "@/lockfile";
 import {
 	addDependency,
 	addGitHubDependency,
+	addLocalDependency,
 	readManifest,
-} from "../manifest.js";
+} from "@/manifest";
 import {
 	createAgentSymlinks,
 	getGitHubSkillPath,
+	getLocalSkillPath,
 	getRegistrySkillPath,
 	type SkillInfo,
-} from "../symlinks.js";
+} from "@/symlinks";
+
+/**
+ * Check if a specifier is a local file reference
+ */
+function isLocalSpecifier(specifier: string): boolean {
+	return (
+		specifier.startsWith("file:") ||
+		specifier.startsWith("./") ||
+		specifier.startsWith("../")
+	);
+}
+
+/**
+ * Parse a local specifier and return the path
+ */
+function parseLocalPath(specifier: string): string {
+	if (specifier.startsWith("file:")) {
+		return specifier.slice(5); // Remove "file:" prefix
+	}
+	return specifier;
+}
+
+/**
+ * Normalize a path to a file: specifier
+ */
+function normalizeToFileSpecifier(path: string): string {
+	if (path.startsWith("file:")) {
+		return path;
+	}
+	return `file:${path}`;
+}
 
 export interface AddOptions {
 	save?: boolean;
@@ -72,7 +106,24 @@ interface ResolvedGitHubPackage {
 	};
 }
 
-type ResolvedPackage = ResolvedRegistryPackage | ResolvedGitHubPackage;
+interface ResolvedLocalPackage {
+	type: "local";
+	/** Original specifier (e.g., "file:../my-skill" or "../my-skill") */
+	specifier: string;
+	/** Normalized specifier with file: prefix */
+	normalizedSpecifier: string;
+	/** Original path from specifier */
+	path: string;
+	/** Resolved absolute path */
+	resolvedPath: string;
+	/** Skill name (last segment of path) */
+	name: string;
+}
+
+type ResolvedPackage =
+	| ResolvedRegistryPackage
+	| ResolvedGitHubPackage
+	| ResolvedLocalPackage;
 
 export async function add(
 	specifiers: string[],
@@ -86,7 +137,10 @@ export async function add(
 
 	for (const specifier of specifiers) {
 		try {
-			if (isGitHubSpecifier(specifier)) {
+			if (isLocalSpecifier(specifier)) {
+				const resolved = await validateLocalPackage(specifier);
+				resolvedPackages.push(resolved);
+			} else if (isGitHubSpecifier(specifier)) {
 				const resolved = await validateGitHubPackage(specifier);
 				resolvedPackages.push(resolved);
 			} else {
@@ -123,6 +177,9 @@ export async function add(
 	);
 	const githubPackages = resolvedPackages.filter(
 		(p): p is ResolvedGitHubPackage => p.type === "github",
+	);
+	const localPackages = resolvedPackages.filter(
+		(p): p is ResolvedLocalPackage => p.type === "local",
 	);
 
 	let resolutionResult: Awaited<ReturnType<typeof resolveRecursive>> | null =
@@ -217,6 +274,25 @@ export async function add(
 	for (const resolved of githubPackages) {
 		try {
 			await installGitHubPackage(resolved, {
+				...options,
+				resolvedAgents: agents,
+			});
+			results.push({ specifier: resolved.specifier, success: true });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Unknown error";
+			results.push({
+				specifier: resolved.specifier,
+				success: false,
+				error: message,
+			});
+			console.error(`Failed to install ${resolved.specifier}: ${message}\n`);
+		}
+	}
+
+	// Install local packages (symlink to local directory)
+	for (const resolved of localPackages) {
+		try {
+			await installLocalPackage(resolved, {
 				...options,
 				resolvedAgents: agents,
 			});
@@ -558,4 +634,138 @@ async function installGitHubPackage(
 		`Installed ${specifier} (${ref}@${downloadResult.commit.slice(0, 7)})`,
 	);
 	console.log(`Location: ${destPath}`);
+}
+
+// =============================================================================
+// Local Package Support
+// =============================================================================
+
+/**
+ * Validate a local package path exists and contains a valid skill
+ */
+async function validateLocalPackage(
+	specifier: string,
+): Promise<ResolvedLocalPackage> {
+	const path = parseLocalPath(specifier);
+	const resolvedPath = resolve(process.cwd(), path);
+	const normalizedSpecifier = normalizeToFileSpecifier(path);
+
+	console.log(`Resolving ${specifier}...`);
+
+	// Check if directory exists
+	try {
+		const stats = await stat(resolvedPath);
+		if (!stats.isDirectory()) {
+			throw new Error(`Path is not a directory: ${resolvedPath}`);
+		}
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+			throw new Error(
+				`Directory not found: ${resolvedPath}\n  Check that the path exists and is accessible.`,
+			);
+		}
+		throw error;
+	}
+
+	// Check for SKILL.md or pspm.json
+	let hasSkillMd = false;
+	let hasPspmJson = false;
+
+	try {
+		await stat(join(resolvedPath, "SKILL.md"));
+		hasSkillMd = true;
+	} catch {
+		// SKILL.md not found
+	}
+
+	try {
+		await stat(join(resolvedPath, "pspm.json"));
+		hasPspmJson = true;
+	} catch {
+		// pspm.json not found
+	}
+
+	if (!hasSkillMd && !hasPspmJson) {
+		throw new Error(
+			`Not a valid skill directory: ${resolvedPath}\n  Missing both SKILL.md and pspm.json. At least one is required.`,
+		);
+	}
+
+	// Get skill name from the last segment of the path
+	const name = basename(resolvedPath);
+
+	console.log(`Resolved ${specifier} -> ${resolvedPath}`);
+
+	return {
+		type: "local",
+		specifier,
+		normalizedSpecifier,
+		path,
+		resolvedPath,
+		name,
+	};
+}
+
+/**
+ * Install a local package by creating a symlink
+ */
+async function installLocalPackage(
+	resolved: ResolvedLocalPackage,
+	options: InternalAddOptions,
+): Promise<void> {
+	const { specifier, normalizedSpecifier, path, resolvedPath, name } = resolved;
+
+	console.log(`Installing ${specifier}...`);
+
+	// Create .pspm/skills/_local directory
+	const skillsDir = getSkillsDir();
+	const localSkillsDir = join(skillsDir, "_local");
+	await mkdir(localSkillsDir, { recursive: true });
+
+	// Create symlink from .pspm/skills/_local/{name} -> resolved path
+	const symlinkPath = join(localSkillsDir, name);
+
+	// Calculate relative path from symlink location to target
+	const relativeTarget = relative(dirname(symlinkPath), resolvedPath);
+
+	// Remove existing symlink if it exists
+	try {
+		await rm(symlinkPath, { force: true });
+	} catch {
+		// Ignore errors
+	}
+
+	// Create the symlink
+	await symlink(relativeTarget, symlinkPath);
+
+	// Add to lockfile
+	const entry: LocalLockfileEntry = {
+		version: "local",
+		path,
+		resolvedPath,
+		name,
+	};
+	await addLocalToLockfile(normalizedSpecifier, entry);
+
+	// Add to pspm.json localDependencies
+	await addLocalDependency(normalizedSpecifier);
+
+	// Create agent symlinks
+	const agents = options.resolvedAgents;
+	if (agents[0] !== "none") {
+		const manifest = await readManifest();
+		const skillInfo: SkillInfo = {
+			name,
+			sourcePath: getLocalSkillPath(name),
+		};
+
+		await createAgentSymlinks([skillInfo], {
+			agents,
+			projectRoot: process.cwd(),
+			agentConfigs: manifest?.agents,
+		});
+	}
+
+	console.log(`Installed ${specifier} (local)`);
+	console.log(`Location: ${symlinkPath} -> ${resolvedPath}`);
 }

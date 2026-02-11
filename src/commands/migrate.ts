@@ -5,8 +5,8 @@ import {
 	getLockfilePath,
 	getPspmDir,
 	getSkillsDir,
-} from "../config.js";
-import { migrateLockfileIfNeeded } from "../lockfile.js";
+} from "@/config";
+import { migrateLockfileIfNeeded } from "@/lockfile";
 
 export interface MigrateOptions {
 	dryRun?: boolean;

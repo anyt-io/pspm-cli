@@ -8,12 +8,8 @@
  * - Topological sort for installation order
  */
 
-import {
-	configure,
-	getSkillVersion,
-	listSkillVersions,
-} from "../api-client.js";
-import { findHighestSatisfying } from "./version.js";
+import { configure, getSkillVersion, listSkillVersions } from "@/api-client";
+import { findHighestSatisfying } from "./version";
 
 // =============================================================================
 // Constants

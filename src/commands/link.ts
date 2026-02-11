@@ -7,20 +7,20 @@
  * - Recovering from accidentally deleted symlinks
  */
 
-import { parseAgentArg, promptForAgents } from "../agents.js";
+import { parseAgentArg, promptForAgents } from "@/agents";
 import {
 	getGitHubSkillName,
 	parseGitHubSpecifier,
 	parseSkillSpecifier,
-} from "../lib/index.js";
-import { listLockfileGitHubPackages, listLockfileSkills } from "../lockfile.js";
-import { readManifest } from "../manifest.js";
+} from "@/lib/index";
+import { listLockfileGitHubPackages, listLockfileSkills } from "@/lockfile";
+import { readManifest } from "@/manifest";
 import {
 	createAgentSymlinks,
 	getGitHubSkillPath,
 	getRegistrySkillPath,
 	type SkillInfo,
-} from "../symlinks.js";
+} from "@/symlinks";
 
 export interface LinkOptions {
 	agent?: string;

@@ -2,8 +2,8 @@ import { randomBytes } from "node:crypto";
 import http from "node:http";
 import { URL } from "node:url";
 import open from "open";
-import { whoamiRequest } from "../api-client.js";
-import { getRegistryUrl, setCredentials } from "../config.js";
+import { whoamiRequest } from "@/api-client";
+import { getRegistryUrl, setCredentials } from "@/config";
 
 export interface LoginOptions {
 	apiKey?: string;
@@ -20,8 +20,9 @@ const DEFAULT_WEB_APP_URL = "https://pspm.dev";
  * Local dev example:
  *   PSPM_WEB_URL=http://localhost:5500 pspm login
  *
- * The registry URL is like https://pspm.dev
- * The web app URL is the same: https://pspm.dev
+ * The registry URL can be:
+ * - https://registry.pspm.dev (registry subdomain) -> web app is https://pspm.dev
+ * - https://pspm.dev (main domain) -> web app is https://pspm.dev
  */
 function getWebAppUrl(registryUrl: string): string {
 	// Environment variable takes priority (for local dev)
@@ -31,7 +32,15 @@ function getWebAppUrl(registryUrl: string): string {
 
 	try {
 		const url = new URL(registryUrl);
-		return `${url.protocol}//${url.host}`;
+		let host = url.host;
+
+		// Strip "registry." subdomain prefix if present
+		// e.g., registry.pspm.dev -> pspm.dev
+		if (host.startsWith("registry.")) {
+			host = host.slice("registry.".length);
+		}
+
+		return `${url.protocol}//${host}`;
 	} catch {
 		return DEFAULT_WEB_APP_URL;
 	}
@@ -39,13 +48,23 @@ function getWebAppUrl(registryUrl: string): string {
 
 /**
  * Get the server/API base URL from the registry URL
- * The registry URL is like https://pspm.dev
- * The server URL is the same: https://pspm.dev
+ * Used for auth-related API calls (token exchange, etc.)
+ *
+ * The registry URL can be:
+ * - https://registry.pspm.dev -> server is https://pspm.dev
+ * - https://pspm.dev -> server is https://pspm.dev
  */
 function getServerUrl(registryUrl: string): string {
 	try {
 		const url = new URL(registryUrl);
-		return `${url.protocol}//${url.host}`;
+		let host = url.host;
+
+		// Strip "registry." subdomain prefix if present
+		if (host.startsWith("registry.")) {
+			host = host.slice("registry.".length);
+		}
+
+		return `${url.protocol}//${host}`;
 	} catch {
 		return DEFAULT_WEB_APP_URL;
 	}

@@ -10,19 +10,19 @@
 
 import { access } from "node:fs/promises";
 import { join } from "node:path";
-import { getAvailableAgents, resolveAgentConfig } from "../agents.js";
+import { getAvailableAgents, resolveAgentConfig } from "@/agents";
 import {
 	type GitHubLockfileEntry,
 	getGitHubSkillName,
 	parseGitHubSpecifier,
-} from "../lib/index.js";
-import { listLockfileGitHubPackages, listLockfileSkills } from "../lockfile.js";
-import { readManifest } from "../manifest.js";
+} from "@/lib/index";
+import { listLockfileGitHubPackages, listLockfileSkills } from "@/lockfile";
+import { readManifest } from "@/manifest";
 import {
 	getGitHubSkillPath,
 	getLinkedAgents,
 	getRegistrySkillPath,
-} from "../symlinks.js";
+} from "@/symlinks";
 
 export interface ListOptions {
 	json?: boolean;

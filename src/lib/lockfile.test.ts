@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PspmLockfile, PspmLockfileEntry } from "./lockfile.js";
+import type { PspmLockfile, PspmLockfileEntry } from "./lockfile";
 
 describe("lockfile types", () => {
 	describe("PspmLockfile", () => {

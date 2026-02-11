@@ -6,7 +6,7 @@ import {
 	isGitHubSpecifier,
 	parseGitHubSpecifier,
 	parseSkillSpecifier,
-} from "./specifier.js";
+} from "./specifier";
 
 describe("specifier utilities", () => {
 	describe("parseSkillSpecifier", () => {
