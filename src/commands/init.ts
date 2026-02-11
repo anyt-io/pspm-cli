@@ -5,7 +5,7 @@ import {
 	DEFAULT_SKILL_FILES,
 	PSPM_SCHEMA_URL,
 	type PspmManifest,
-} from "../lib/index.js";
+} from "@/lib/index";
 
 export interface InitOptions {
 	name?: string;

@@ -37,9 +37,15 @@ export function parseSkillSpecifier(specifier: string): SkillSpecifier | null {
 		return null;
 	}
 
+	const username = match[1];
+	const name = match[2];
+	if (!username || !name) {
+		return null;
+	}
+
 	return {
-		username: match[1]!,
-		name: match[2]!,
+		username,
+		name,
 		versionRange: match[3],
 	};
 }
@@ -125,10 +131,13 @@ export function parseGitHubSpecifier(
 	}
 
 	const [, owner, repo, pathWithSlash, ref] = match;
+	if (!owner || !repo) {
+		return null;
+	}
 
 	return {
-		owner: owner!,
-		repo: repo!,
+		owner,
+		repo,
 		// Remove leading slash from path
 		path: pathWithSlash ? pathWithSlash.slice(1) : undefined,
 		ref: ref || undefined,
@@ -171,7 +180,10 @@ export function formatGitHubSpecifier(spec: GitHubSpecifier): string {
 export function getGitHubSkillName(spec: GitHubSpecifier): string {
 	if (spec.path) {
 		const segments = spec.path.split("/").filter(Boolean);
-		return segments[segments.length - 1]!;
+		const lastSegment = segments[segments.length - 1];
+		if (lastSegment) {
+			return lastSegment;
+		}
 	}
 	return spec.repo;
 }

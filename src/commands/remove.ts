@@ -8,25 +8,25 @@
 
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { getAvailableAgents } from "../agents.js";
-import { getSkillsDir } from "../config.js";
+import { getAvailableAgents } from "@/agents";
+import { getSkillsDir } from "@/config";
 import {
 	getGitHubSkillName,
 	isGitHubSpecifier,
 	parseGitHubSpecifier,
-} from "../lib/index.js";
+} from "@/lib/index";
 import {
 	listLockfileGitHubPackages,
 	listLockfileSkills,
 	removeFromLockfile,
 	removeGitHubFromLockfile,
-} from "../lockfile.js";
+} from "@/lockfile";
 import {
 	readManifest,
 	removeDependency,
 	removeGitHubDependency,
-} from "../manifest.js";
-import { getGitHubSkillPath, removeAgentSymlinks } from "../symlinks.js";
+} from "@/manifest";
+import { getGitHubSkillPath, removeAgentSymlinks } from "@/symlinks";
 
 export async function remove(nameOrSpecifier: string): Promise<void> {
 	try {

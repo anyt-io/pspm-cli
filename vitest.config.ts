@@ -12,4 +12,9 @@ export default defineConfig({
 			exclude: ["src/**/*.test.ts"],
 		},
 	},
+	resolve: {
+		alias: {
+			"@": new URL("./src", import.meta.url).pathname,
+		},
+	},
 });

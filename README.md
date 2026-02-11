@@ -100,6 +100,10 @@ pspm install                                     # Install all from lockfile
 - `github:owner/repo/path/to/skill` - Subdirectory within repo
 - `github:owner/repo/path/to/skill@v1.0.0` - Subdirectory with tag
 
+**Local directory specifiers (for development):**
+- `file:../path/to/skill` - Install from local directory
+- `file:./subdir/skill` - Relative path from current directory
+
 **Agent symlink options:**
 ```bash
 pspm add <specifier> --agent claude-code,cursor  # Link to multiple agents
@@ -108,6 +112,15 @@ pspm link --agent codex                          # Recreate symlinks for specifi
 ```
 
 Default is all agents (`claude-code`, `codex`, `cursor`, `gemini`, `kiro`, `opencode`). Use `--agent claude-code` to install for a single agent.
+
+### Versioning
+
+```bash
+pspm version major            # Bump major version (1.0.0 → 2.0.0)
+pspm version minor            # Bump minor version (1.0.0 → 1.1.0)
+pspm version patch            # Bump patch version (1.0.0 → 1.0.1)
+pspm version patch --dry-run  # Preview changes without writing
+```
 
 ### Publishing
 
@@ -118,6 +131,9 @@ pspm publish --access public  # Publish and make public in one step
 pspm unpublish <spec> --force # Remove a published skill version
 pspm deprecate <spec> [msg]   # Mark a version as deprecated
 ```
+
+**Publish preview:** Before uploading, `pspm publish` shows a preview of included files, package size, and requires confirmation. Max package size is **10MB**.
+
 
 ### Visibility
 
@@ -143,7 +159,7 @@ PSPM uses a simple npm-like INI configuration format.
 
 ```ini
 ; PSPM Configuration
-registry = https://pspm.dev
+registry = https://registry.pspm.dev
 authToken = sk_...
 username = myuser
 ```
@@ -161,12 +177,12 @@ registry = https://custom-registry.example.com
 
 ```json
 {
-  "lockfileVersion": 3,
-  "registryUrl": "https://pspm.dev",
+  "lockfileVersion": 4,
+  "registryUrl": "https://registry.pspm.dev",
   "packages": {
     "@user/username/skillname": {
       "version": "1.0.0",
-      "resolved": "https://pspm.dev/...",
+      "resolved": "https://registry.pspm.dev/@user/username/skillname/1.0.0",
       "integrity": "sha256-..."
     }
   },
@@ -177,6 +193,14 @@ registry = https://custom-registry.example.com
       "integrity": "sha256-...",
       "gitCommit": "abc1234567890...",
       "gitRef": "main"
+    }
+  },
+  "localPackages": {
+    "file:../my-local-skill": {
+      "version": "local",
+      "path": "../my-local-skill",
+      "resolvedPath": "/absolute/path/to/my-local-skill",
+      "name": "my-local-skill"
     }
   }
 }
@@ -202,11 +226,13 @@ project/
 │   │   ├── username/    # Registry skills
 │   │   │   └── skillname/
 │   │   │       └── SKILL.md
-│   │   └── _github/     # GitHub skills
-│   │       └── owner/
-│   │           └── repo/
-│   │               └── path/
-│   │                   └── SKILL.md
+│   │   ├── _github/     # GitHub skills
+│   │   │   └── owner/
+│   │   │       └── repo/
+│   │   │           └── path/
+│   │   │               └── SKILL.md
+│   │   └── _local/      # Local skill symlinks
+│   │       └── skillname -> ../../../path/to/local/skill
 │   └── cache/           # Tarball cache
 ├── .claude/
 │   └── skills/          # Symlinks for claude-code agent
@@ -218,6 +244,23 @@ project/
 ~/
 └── .pspmrc              # User config
 ```
+
+## Ignoring Files (.pspmignore)
+
+Control which files are excluded when publishing with a `.pspmignore` file:
+
+```
+# .pspmignore - exclude files from publish
+*.test.ts
+__tests__/
+.env*
+*.log
+```
+
+**Behavior:**
+- If `.pspmignore` exists, use it for ignore patterns
+- Otherwise, fall back to `.gitignore` if present
+- Always ignores `node_modules`, `.git`, and `.pspm-publish` regardless
 
 ## Creating a Skill
 

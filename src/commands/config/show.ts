@@ -1,8 +1,4 @@
-import {
-	findProjectConfig,
-	getConfigPath,
-	resolveConfig,
-} from "../../config.js";
+import { findProjectConfig, getConfigPath, resolveConfig } from "@/config";
 
 /**
  * Show resolved configuration

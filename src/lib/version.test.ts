@@ -8,7 +8,7 @@ import {
 	rangesIntersect,
 	resolveVersion,
 	versionSatisfies,
-} from "./version.js";
+} from "./version";
 
 describe("version utilities", () => {
 	describe("resolveVersion", () => {

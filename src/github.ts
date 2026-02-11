@@ -7,8 +7,8 @@
 
 import { cp, lstat, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { GitHubSpecifier } from "./lib/index.js";
-import { calculateIntegrity } from "./lib/index.js";
+import type { GitHubSpecifier } from "./lib/index";
+import { calculateIntegrity } from "./lib/index";
 
 /**
  * Result of downloading a GitHub package.

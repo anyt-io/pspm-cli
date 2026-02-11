@@ -2,9 +2,9 @@ import {
 	configure,
 	deprecateSkillVersion,
 	undeprecateSkillVersion,
-} from "../api-client.js";
-import { getRegistryUrl, requireApiKey } from "../config.js";
-import { parseSkillSpecifier } from "../lib/index.js";
+} from "@/api-client";
+import { getRegistryUrl, requireApiKey } from "@/config";
+import { parseSkillSpecifier } from "@/lib/index";
 
 export interface DeprecateOptions {
 	undo?: boolean;
@@ -53,7 +53,11 @@ export async function deprecate(
 				`Removing deprecation from @user/${username}/${name}@${versionRange}...`,
 			);
 
-			const response = await undeprecateSkillVersion(name, versionRange);
+			const response = await undeprecateSkillVersion(
+				username,
+				name,
+				versionRange,
+			);
 			if (response.status !== 200) {
 				console.error(
 					`Error: ${response.error || "Failed to remove deprecation"}`,
@@ -75,7 +79,12 @@ export async function deprecate(
 
 			console.log(`Deprecating @user/${username}/${name}@${versionRange}...`);
 
-			const response = await deprecateSkillVersion(name, versionRange, message);
+			const response = await deprecateSkillVersion(
+				username,
+				name,
+				versionRange,
+				message,
+			);
 			if (response.status !== 200) {
 				console.error(
 					`Error: ${response.error || "Failed to deprecate version"}`,

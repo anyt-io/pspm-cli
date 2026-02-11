@@ -1,6 +1,6 @@
 {
 	"name": "@anytio/pspm",
-	"version": "0.2.0",
+	"version": "0.5.1",
 	"description": "CLI for PSPM - Prompt Skill Package Manager for AI coding agents",
 	"author": "anyt.io",
 	"license": "Artistic-2.0",
@@ -52,21 +52,22 @@
 		"prepublishOnly": "pnpm build"
 	},
 	"dependencies": {
-		"@inquirer/prompts": "^7.4.0",
-		"commander": "^14.0.0",
-		"ini": "^5.0.0",
-		"open": "^10.2.0",
-		"semver": "^7.7.2"
+		"@inquirer/prompts": "^8.2.0",
+		"commander": "^14.0.3",
+		"ignore": "^7.0.5",
+		"ini": "^6.0.0",
+		"open": "^11.0.0",
+		"semver": "^7.7.4"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.3.12",
+		"@biomejs/biome": "^2.3.14",
 		"@types/ini": "^4.1.1",
-		"@types/node": "^22.15.3",
-		"@types/semver": "^7.7.0",
+		"@types/node": "^25.2.2",
+		"@types/semver": "^7.7.1",
 		"knip": "^5.82.1",
-		"tsup": "^8.5.0",
-		"tsx": "^4.19.4",
-		"typescript": "^5.8.3",
+		"tsup": "^8.5.1",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3",
 		"vitest": "^4.0.18"
 	},
 	"engines": {

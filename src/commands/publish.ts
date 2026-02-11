@@ -2,19 +2,42 @@ import { exec as execCb } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { createInterface } from "node:readline";
 import { promisify } from "node:util";
-import { changeSkillAccess, configure, publishSkill } from "../api-client.js";
-import { getRegistryUrl, requireApiKey } from "../config.js";
-import { extractApiErrorMessage } from "../errors.js";
+import { configure, publishSkill } from "@/api-client";
+import { getRegistryUrl, requireApiKey } from "@/config";
+import { extractApiErrorMessage } from "@/errors";
 import {
+	ALWAYS_IGNORED,
 	DEFAULT_SKILL_FILES,
+	getExcludeArgsForRsync,
+	type IgnoreLoadResult,
+	loadIgnorePatterns,
 	type ManifestDetectionResult,
 	type PspmManifest,
 	validateManifest,
-} from "../lib/index.js";
-import type { SkillManifest } from "../sdk/generated";
+} from "@/lib/index";
+import type { SkillManifest } from "@/sdk/generated";
 
 const exec = promisify(execCb);
+
+/**
+ * Prompt user for yes/no confirmation
+ */
+function confirm(question: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		const rl = createInterface({
+			input: process.stdin,
+			output: process.stdout,
+		});
+
+		rl.question(`${question} (y/N) `, (answer) => {
+			rl.close();
+			const normalized = answer.trim().toLowerCase();
+			resolve(normalized === "y" || normalized === "yes");
+		});
+	});
+}
 
 /**
  * Detect and read manifest file (pspm.json or package.json)
@@ -49,6 +72,7 @@ async function detectManifest(): Promise<ManifestDetectionResult> {
 					: packageJson.author?.name,
 			license: packageJson.license,
 			files: packageJson.files,
+			dependencies: packageJson.dependencies,
 		};
 
 		return { type: "package.json", manifest, path: packageJsonPath };
@@ -72,6 +96,7 @@ function formatBytes(bytes: number): string {
 async function getFilesWithSizes(
 	dir: string,
 	baseDir: string,
+	ignoreResult?: IgnoreLoadResult,
 ): Promise<Array<{ path: string; size: number }>> {
 	const results: Array<{ path: string; size: number }> = [];
 
@@ -82,13 +107,28 @@ async function getFilesWithSizes(
 			const fullPath = join(dir, entry.name);
 			const relativePath = relative(baseDir, fullPath);
 
-			// Skip node_modules and .git
-			if (entry.name === "node_modules" || entry.name === ".git") {
+			// Skip always-ignored directories (node_modules, .git, etc.)
+			if (ALWAYS_IGNORED.includes(entry.name)) {
 				continue;
 			}
 
+			// Check against ignore patterns if available
+			if (ignoreResult?.ig) {
+				// For directories, add trailing slash for proper matching
+				const pathToCheck = entry.isDirectory()
+					? `${relativePath}/`
+					: relativePath;
+				if (ignoreResult.ig.ignores(pathToCheck)) {
+					continue;
+				}
+			}
+
 			if (entry.isDirectory()) {
-				const subFiles = await getFilesWithSizes(fullPath, baseDir);
+				const subFiles = await getFilesWithSizes(
+					fullPath,
+					baseDir,
+					ignoreResult,
+				);
 				results.push(...subFiles);
 			} else {
 				const fileStat = await stat(fullPath);
@@ -134,12 +174,42 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 			process.exit(1);
 		}
 
+		// Validate SKILL.md exists
+		const skillMdPath = join(process.cwd(), "SKILL.md");
+		try {
+			await stat(skillMdPath);
+		} catch {
+			console.error(
+				"Error: SKILL.md is required. Create a SKILL.md file with your skill's documentation before publishing.",
+			);
+			process.exit(1);
+		}
+
+		// Warn and confirm if publishing as public
+		if (options.access === "public") {
+			console.log("");
+			console.log("⚠️  Warning: You are about to publish this skill as PUBLIC.");
+			console.log(
+				"   Once a skill is public, it CANNOT be made private again.",
+			);
+			console.log("   This action is irreversible.");
+			console.log("");
+
+			const confirmed = await confirm("Do you want to continue?");
+			if (!confirmed) {
+				console.log("Publish cancelled.");
+				process.exit(0);
+			}
+			console.log("");
+		}
+
 		// Create a mutable copy for version bumping
 		const packageJson: SkillManifest = {
 			name: manifest.name,
 			version: manifest.version,
 			description: manifest.description,
 			files: manifest.files,
+			dependencies: manifest.dependencies,
 		};
 
 		// Handle version bump if requested
@@ -155,6 +225,17 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 			packageJson.version = newVersion;
 			console.log(`Bumped version to ${newVersion}`);
 		}
+
+		// Load ignore patterns (.pspmignore or .gitignore fallback)
+		const ignoreResult = await loadIgnorePatterns();
+		if (ignoreResult.source) {
+			console.log(
+				`pspm notice Using ${ignoreResult.source} for ignore patterns`,
+			);
+		}
+
+		// Build exclude arguments for rsync and tar using loaded patterns
+		const excludeArgs = getExcludeArgsForRsync(ignoreResult.patterns);
 
 		// Create tarball using npm pack (or tar directly)
 		// Sanitize name for filename (replace @ and / with -)
@@ -174,9 +255,9 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 
 			for (const file of files) {
 				try {
-					// Use rsync to copy while excluding node_modules
+					// Use rsync to copy while excluding ignored patterns
 					await exec(
-						`rsync -a --exclude='node_modules' --exclude='.git' "${file}" "${tempDir}/package/" 2>/dev/null || true`,
+						`rsync -a ${excludeArgs} "${file}" "${tempDir}/package/" 2>/dev/null || true`,
 					);
 				} catch {
 					// Ignore files that don't exist
@@ -201,14 +282,19 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 			}
 
 			// Get list of files that will be included and their sizes
+			// Apply ignore patterns to filter out ignored files
 			const packageDir = join(tempDir, "package");
-			const tarballContents = await getFilesWithSizes(packageDir, packageDir);
+			const tarballContents = await getFilesWithSizes(
+				packageDir,
+				packageDir,
+				ignoreResult,
+			);
 			const unpackedSize = tarballContents.reduce((acc, f) => acc + f.size, 0);
 
-			// Create tarball (excluding node_modules just in case)
+			// Create tarball (excluding ignored patterns)
 			const tarballPath = join(tempDir, tarballName);
 			await exec(
-				`tar -czf "${tarballPath}" -C "${tempDir}" --exclude='node_modules' --exclude='.git' package`,
+				`tar -czf "${tarballPath}" -C "${tempDir}" ${excludeArgs} package`,
 			);
 
 			// Read tarball and calculate hashes
@@ -223,11 +309,30 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 				.digest("base64");
 			const integrity = `sha512-${integrityHash}`;
 
-			// Print npm-style publish notice
+			// Enforce max tarball size (10MB)
+			const MAX_TARBALL_SIZE = 10 * 1024 * 1024;
+			if (tarballSize > MAX_TARBALL_SIZE) {
+				console.error("");
+				console.error(
+					`Error: Package size ${formatBytes(tarballSize)} exceeds the maximum allowed size of ${formatBytes(MAX_TARBALL_SIZE)}.`,
+				);
+				console.error("");
+				console.error("To reduce the package size:");
+				console.error(
+					'  - Add a "files" field in your manifest to include only necessary files',
+				);
+				console.error("  - Add patterns to .pspmignore to exclude large files");
+				console.error(
+					"  - Remove build artifacts, tests, and documentation from the package",
+				);
+				process.exit(1);
+			}
+
+			// Print publish preview
 			console.log("");
 			console.log("pspm notice");
 			console.log(`pspm notice 📦  ${packageJson.name}@${packageJson.version}`);
-			console.log("pspm notice Tarball Contents");
+			console.log("pspm notice === Tarball Contents ===");
 
 			// Sort files by size descending for display
 			tarballContents.sort((a, b) => b.size - a.size);
@@ -237,7 +342,7 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 				);
 			}
 
-			console.log("pspm notice Tarball Details");
+			console.log("pspm notice === Tarball Details ===");
 			console.log(`pspm notice name:          ${packageJson.name}`);
 			console.log(`pspm notice version:       ${packageJson.version}`);
 			console.log(`pspm notice filename:      ${tarballName}`);
@@ -249,6 +354,17 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 			);
 			console.log(`pspm notice total files:   ${tarballContents.length}`);
 			console.log("pspm notice");
+
+			// Ask user to confirm before publishing
+			const confirmed = await confirm(
+				`Publish ${packageJson.name}@${packageJson.version} to ${registryUrl}?`,
+			);
+			if (!confirmed) {
+				console.log("Publish cancelled.");
+				process.exit(0);
+			}
+
+			console.log("");
 			console.log(`pspm notice Publishing to ${registryUrl} with tag latest`);
 
 			// Configure SDK and publish (use direct REST endpoints, not oRPC)
@@ -256,6 +372,7 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 			const response = await publishSkill({
 				manifest: packageJson,
 				tarballBase64,
+				visibility: options.access,
 			});
 
 			if (response.status !== 200) {
@@ -276,30 +393,18 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 			}
 
 			const result = response.data;
+			const visibility = result.skill.visibility;
+			const visibilityIcon = visibility === "public" ? "🌐" : "🔒";
 			console.log(
 				`+ @user/${result.skill.username}/${result.skill.name}@${result.version.version}`,
 			);
 			console.log(`Checksum: ${result.version.checksum}`);
+			console.log(`Visibility: ${visibilityIcon} ${visibility}`);
 
-			// Set visibility if --access flag was provided
-			if (options.access) {
-				console.log(`\nSetting visibility to ${options.access}...`);
-				const accessResponse = await changeSkillAccess(packageJson.name, {
-					visibility: options.access,
-				});
-
-				if (accessResponse.status !== 200 || !accessResponse.data) {
-					console.warn(
-						`Warning: Failed to set visibility: ${accessResponse.error ?? "Unknown error"}`,
-					);
-				} else {
-					console.log(`Package is now ${accessResponse.data.visibility}`);
-					if (options.access === "public") {
-						console.log(
-							"Note: This action is irreversible. Public packages cannot be made private.",
-						);
-					}
-				}
+			if (visibility === "public") {
+				console.log(
+					"Note: Public packages cannot be made private. This is irreversible.",
+				);
 			}
 		} finally {
 			// Cleanup

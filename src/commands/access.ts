@@ -1,6 +1,19 @@
-import { changeSkillAccess, configure } from "../api-client.js";
-import { getRegistryUrl, requireApiKey } from "../config.js";
-import { parseSkillSpecifier } from "../lib/index.js";
+import { changeSkillAccess, configure } from "@/api-client";
+import { getRegistryUrl, requireApiKey, resolveConfig } from "@/config";
+import {
+	isGitHubSpecifier,
+	parseGitHubSpecifier,
+	parseSkillSpecifier,
+} from "@/lib/index";
+
+/** Check if specifier is a local file reference */
+function isLocalSpecifier(specifier: string): boolean {
+	return (
+		specifier.startsWith("file:") ||
+		specifier.startsWith("./") ||
+		specifier.startsWith("../")
+	);
+}
 
 export interface AccessOptions {
 	public?: boolean;
@@ -39,17 +52,54 @@ export async function access(
 
 		// Parse package name - either from specifier or from current directory's pspm.json
 		let packageName: string;
+		let packageUsername: string | undefined;
 
 		if (specifier) {
-			// Parse the specifier to extract the package name
+			// Check for GitHub specifiers - not supported for access command
+			if (isGitHubSpecifier(specifier)) {
+				const ghSpec = parseGitHubSpecifier(specifier);
+				if (ghSpec) {
+					console.error(`Error: Cannot change visibility of GitHub packages.`);
+					console.error(
+						`  "${specifier}" is hosted on GitHub, not the PSPM registry.`,
+					);
+					console.error(
+						`  Visibility can only be changed for packages published to the registry.`,
+					);
+				} else {
+					console.error(`Error: Invalid GitHub specifier "${specifier}".`);
+					console.error(`  Use format: github:{owner}/{repo}[/{path}][@{ref}]`);
+				}
+				process.exit(1);
+			}
+
+			// Check for local file specifiers - not supported for access command
+			if (isLocalSpecifier(specifier)) {
+				console.error(`Error: Cannot change visibility of local packages.`);
+				console.error(
+					`  "${specifier}" is a local directory, not a registry package.`,
+				);
+				console.error(
+					`  Visibility can only be changed for packages published to the registry.`,
+				);
+				process.exit(1);
+			}
+
+			// Parse as registry specifier
 			const parsed = parseSkillSpecifier(specifier);
 			if (!parsed) {
+				console.error(`Error: Invalid package specifier "${specifier}".`);
+				console.error(`  Use format: @user/{username}/{name}`);
+				console.error(``);
+				console.error(`  Examples:`);
+				console.error(`    pspm access @user/myname/my-skill --public`);
 				console.error(
-					`Error: Invalid skill specifier "${specifier}". Use format: @user/{username}/{name}`,
+					`    pspm access --public  (uses current directory's pspm.json)`,
 				);
 				process.exit(1);
 			}
 			packageName = parsed.name;
+			packageUsername = parsed.username;
 		} else {
 			// Read from current directory's pspm.json or package.json
 			const { readFile } = await import("node:fs/promises");
@@ -91,12 +141,27 @@ export async function access(
 			packageName = manifest.name;
 		}
 
+		// If username not from specifier, get from config
+		if (!packageUsername) {
+			const config = await resolveConfig();
+			packageUsername = config.username;
+		}
+
+		if (!packageUsername) {
+			console.error(
+				"Error: Could not determine username. Please use the full specifier: @user/{username}/{name}",
+			);
+			process.exit(1);
+		}
+
 		// Configure SDK and make API call
 		configure({ registryUrl, apiKey });
 
 		console.log(`Setting ${packageName} to ${visibility}...`);
 
-		const response = await changeSkillAccess(packageName, { visibility });
+		const response = await changeSkillAccess(packageUsername, packageName, {
+			visibility,
+		});
 
 		if (response.status !== 200 || !response.data) {
 			const errorMessage = response.error ?? "Failed to change visibility";

@@ -1,91 +1,175 @@
-# CLAUDE.md
+# CLAUDE.md - @anytio/pspm (CLI)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-PSPM (Prompt Skill Package Manager) is a CLI tool for managing prompt skills across AI coding agents. It functions like npm for AI agent skills, allowing users to install, publish, and manage `SKILL.md` files.
-
-## Development Commands
+## Commands
 
 ```bash
 # Development
-pnpm dev              # Run CLI directly with tsx (no build needed)
-pnpm build            # Build with tsup to dist/
-pnpm link             # Build and link globally for testing
+pnpm dev:cli                      # Start CLI in dev mode (with tsx watch)
+pnpm build:cli                    # Build CLI for production
+pnpm cli -- <command>             # Run CLI command in dev mode
 
-# Code Quality
-pnpm typecheck        # TypeScript type checking
-pnpm lint             # Biome linting
-pnpm check            # Biome check (lint + format validation)
-pnpm format           # Format with Biome
-pnpm knip             # Check for unused dependencies/exports
+# From apps/cli directory
+pnpm dev                          # Start dev mode
+pnpm build                        # Build with tsup
+pnpm test                         # Run tests with vitest
 
-# Testing
-pnpm test             # Run tests once with Vitest
-pnpm test:watch       # Run tests in watch mode
+# Examples
+pnpm cli -- --help                # Show help
+pnpm cli -- whoami                # Check current user
+pnpm cli -- add @user/skill       # Add a skill
 ```
 
 ## Architecture
 
-### Entry Point & Commands
-- `src/index.ts` - CLI entry point using Commander.js, defines all commands
-- `src/commands/` - Individual command implementations (add, install, publish, etc.)
-- `src/commands/config/` - Config subcommands (show, init)
+The CLI is a Commander.js application that manages prompt skills for AI coding agents.
 
-### Core Modules
-- `src/config.ts` - Configuration management (INI format in `~/.pspmrc` and `.pspmrc`)
-- `src/api-client.ts` - SDK wrapper and API calls to the registry
-- `src/agents.ts` - Agent configurations for skill symlinks (Claude Code, Cursor, Codex, etc.)
-- `src/github.ts` - GitHub specifier fetching and caching
-- `src/lockfile.ts` - Lockfile (`pspm-lock.json`) read/write operations
-- `src/manifest.ts` - Package manifest (`pspm.json`) handling
-- `src/symlinks.ts` - Agent symlink creation/management
+### Key Files
 
-### Library Modules (`src/lib/`)
-- `specifier.ts` - Parse registry (`@user/username/skill`) and GitHub (`github:owner/repo`) specifiers
-- `version.ts` - Semver version resolution, `findHighestSatisfying()` for multi-range resolution
-- `resolver.ts` - Recursive dependency resolution with BFS, topological sort, cycle detection
-- `integrity.ts` - SHA integrity hash generation
-- `lockfile.ts` - Lockfile types (v1-v4) and helpers
+- `src/index.ts` - Main CLI entry point with all commands
+- `src/api-client.ts` - SDK wrapper (imports from local `src/sdk/`)
+- `src/sdk/` - Generated SDK (fetcher.ts + generated/index.ts)
+- `src/config.ts` - User/project configuration (~/.pspmrc, .pspmrc)
+- `src/lockfile.ts` - Lockfile operations (pspm-lock.json)
+- `src/manifest.ts` - Manifest operations (pspm.json)
+- `src/agents.ts` - Agent detection and configuration
+- `src/symlinks.ts` - Agent symlink management
+- `src/github.ts` - GitHub package support
+- `src/errors.ts` - CLI error types
+
+### Commands (src/commands/)
+
+| Command | Description |
+|---------|-------------|
+| `login` | Authenticate via browser or API key |
+| `logout` | Clear stored credentials |
+| `whoami` | Show current user info |
+| `init` | Create pspm.json manifest |
+| `migrate` | Migrate from old directory structure |
+| `add` | Add and install skills |
+| `remove` | Remove installed skill |
+| `list` | List installed skills |
+| `install` | Install from lockfile or add packages |
+| `link` | Recreate agent symlinks |
+| `update` | Update skills to latest versions |
+| `publish` | Publish skill to registry |
+| `unpublish` | Remove published version |
+| `access` | Change package visibility |
+| `deprecate` | Mark version as deprecated |
+| `version` | Bump package version (major, minor, patch) |
+| `config show` | Show resolved configuration |
+| `config init` | Create .pspmrc file |
+
+### Library (src/lib/)
+
+Core utilities with comprehensive tests:
+
+- `ignore.ts` - `.pspmignore` / `.gitignore` pattern loading and filtering
+- `integrity.ts` - SHA256 integrity hash calculation
+- `lockfile.ts` - Lockfile types and parsing
 - `manifest.ts` - Manifest types and validation
+- `specifier.ts` - Package specifier parsing
+- `version.ts` - Semver version resolution
+- `resolver.ts` - Recursive dependency resolution
 
-### SDK (`src/sdk/`)
-- `fetcher.ts` - HTTP client configuration for registry API
-- `generated/index.ts` - Generated API client functions
+## SDK Integration
 
-## Key Patterns
+The CLI uses a local SDK generated from the server's OpenAPI spec:
 
-### Package Specifiers
-- Registry: `@user/{username}/{skillname}[@{version}]`
-- GitHub: `github:{owner}/{repo}[/{path}][@{ref}]`
+```typescript
+// src/api-client.ts wraps the SDK
+import {
+  configure as sdkConfigure,
+  getConfig,
+  isConfigured,
+} from "./sdk/fetcher";
+import {
+  getSkill,
+  publishSkill,
+  // ... other generated SDK functions
+} from "./sdk/generated";
 
-### Agent Symlinks
-Skills are installed to `.pspm/skills/` and symlinked to agent directories:
-- `.claude/skills/` (Claude Code)
-- `.cursor/skills/` (Cursor)
-- `.codex/skills/` (Codex)
-- `.gemini/skills/` (Gemini CLI)
-- `.kiro/skills/` (Kiro CLI)
-- `.opencode/skills/` (OpenCode)
+// CLI-specific helpers
+export function configure(config: SDKConfig): void {
+  sdkConfigure({
+    baseUrl: config.registryUrl,
+    apiKey: config.apiKey,
+  });
+}
+```
 
-### Dependency Resolution
-- **Recursive resolution**: Registry packages resolve transitive dependencies automatically
-- **Highest satisfying version**: When multiple packages need the same dependency, picks highest version satisfying all ranges
-- **5-depth limit**: Prevents excessively deep dependency trees
-- **Topological installation**: Dependencies installed before dependents
-- **Lockfile v4**: Stores resolved dependency graph in `pspm-lock.json`
+To regenerate the SDK after API changes:
+```bash
+pnpm sdk:generate  # From monorepo root
+```
 
-### Configuration Cascade
-Priority order (highest to lowest):
-1. Environment variables (`PSPM_REGISTRY_URL`, `PSPM_API_KEY`)
-2. Project config (`.pspmrc` in project directory)
-3. User config (`~/.pspmrc`)
-4. Defaults
+## Build Configuration
 
-## Code Style
+Uses tsup for ESM bundling:
 
-- Uses Biome for formatting and linting
-- Tab indentation, double quotes
-- ESM modules (`"type": "module"`)
-- TypeScript strict mode enabled
+```typescript
+// tsup.config.ts
+export default defineConfig({
+  entry: ["src/index.ts"],
+  format: ["esm"],
+  target: "node22",
+});
+```
+
+## Testing
+
+Tests use vitest with path alias support:
+
+```bash
+pnpm test                # Run all tests
+pnpm test -- --watch     # Watch mode
+```
+
+Test files are colocated in `src/lib/*.test.ts`.
+
+## Configuration Files
+
+### User Config: `~/.pspmrc`
+
+```ini
+registry = https://registry.pspm.dev
+authToken = sk_...
+username = myuser
+```
+
+### Project Config: `.pspmrc`
+
+```ini
+registry = https://custom.example.com
+```
+
+### Manifest: `pspm.json`
+
+```json
+{
+  "name": "@user/username/skill",
+  "version": "1.0.0",
+  "dependencies": {},
+  "githubDependencies": {}
+}
+```
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `PSPM_API_KEY` | Override API key |
+| `PSPM_DEBUG` | Enable debug logging |
+| `GITHUB_TOKEN` | GitHub token for private repos |
+
+## Path Aliases
+
+The CLI uses `@/` path alias for imports:
+
+```typescript
+import { configure } from "@/api-client";
+import { resolveConfig } from "@/config";
+```
+
+Configured in `tsconfig.json` and `vitest.config.ts`.
+
+<!-- @doc-sync: 9c7eea570623d2a3e016cd0544490571877243ca | 2026-01-29 12:00 -->

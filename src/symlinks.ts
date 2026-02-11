@@ -7,8 +7,8 @@
 
 import { lstat, mkdir, readlink, rm, symlink } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
-import { resolveAgentConfig } from "./agents.js";
-import type { AgentConfig } from "./lib/index.js";
+import { resolveAgentConfig } from "./agents";
+import type { AgentConfig } from "./lib/index";
 
 /**
  * Options for creating agent symlinks.
@@ -188,6 +188,16 @@ export function getGitHubSkillPath(
 		return `.pspm/skills/_github/${owner}/${repo}/${path}`;
 	}
 	return `.pspm/skills/_github/${owner}/${repo}`;
+}
+
+/**
+ * Get the source path for a local skill within .pspm/skills/.
+ *
+ * @param skillName - Skill name
+ * @returns Relative path from project root (e.g., ".pspm/skills/_local/my-skill")
+ */
+export function getLocalSkillPath(skillName: string): string {
+	return `.pspm/skills/_local/${skillName}`;
 }
 
 /**

@@ -1,19 +1,15 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parseAgentArg, promptForAgents } from "../agents.js";
-import {
-	configure,
-	getSkillVersion,
-	listSkillVersions,
-} from "../api-client.js";
+import { parseAgentArg, promptForAgents } from "@/agents";
+import { configure, getSkillVersion, listSkillVersions } from "@/api-client";
 import {
 	getCacheDir,
 	getSkillsDir,
 	getTokenForRegistry,
 	resolveConfig,
-} from "../config.js";
-import { extractApiErrorMessage } from "../errors.js";
+} from "@/config";
+import { extractApiErrorMessage } from "@/errors";
 import {
 	downloadGitHubPackage,
 	extractGitHubPackage,
@@ -21,7 +17,7 @@ import {
 	GitHubPathNotFoundError,
 	GitHubRateLimitError,
 	getGitHubDisplayName,
-} from "../github.js";
+} from "@/github";
 import {
 	calculateIntegrity,
 	computeInstallOrder,
@@ -31,24 +27,24 @@ import {
 	parseGitHubSpecifier,
 	parseSkillSpecifier,
 	resolveVersion,
-} from "../lib/index.js";
+} from "@/lib/index";
 import {
 	addGitHubToLockfile,
 	addToLockfile,
 	migrateLockfileIfNeeded,
 	readLockfile,
-} from "../lockfile.js";
+} from "@/lockfile";
 import {
 	getDependencies,
 	getGitHubDependencies,
 	readManifest,
-} from "../manifest.js";
+} from "@/manifest";
 import {
 	createAgentSymlinks,
 	getGitHubSkillPath,
 	getRegistrySkillPath,
 	type SkillInfo,
-} from "../symlinks.js";
+} from "@/symlinks";
 
 /**
  * Get cache file path from integrity hash

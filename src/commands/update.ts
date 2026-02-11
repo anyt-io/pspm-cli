@@ -1,9 +1,9 @@
-import { configure, listSkillVersions } from "../api-client.js";
-import { getRegistryUrl, requireApiKey } from "../config.js";
-import { extractApiErrorMessage } from "../errors.js";
-import { resolveVersion } from "../lib/index.js";
-import { listLockfileSkills } from "../lockfile.js";
-import { add } from "./add.js";
+import { configure, listSkillVersions } from "@/api-client";
+import { getRegistryUrl, requireApiKey } from "@/config";
+import { extractApiErrorMessage } from "@/errors";
+import { resolveVersion } from "@/lib/index";
+import { listLockfileSkills } from "@/lockfile";
+import { add } from "./add";
 
 export interface UpdateOptions {
 	dryRun?: boolean;
