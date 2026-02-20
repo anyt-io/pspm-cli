@@ -473,7 +473,7 @@ async function validateRegistryPackage(
 	const { username, name, versionRange } = parsed;
 
 	// Configure SDK - apiKey may be undefined for public packages
-	configure({ registryUrl, apiKey: apiKey ?? "" });
+	configure({ registryUrl, apiKey });
 
 	console.log(`Resolving ${specifier}...`);
 
