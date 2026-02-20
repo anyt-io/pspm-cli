@@ -44,7 +44,7 @@ function registryUrlToBaseUrl(registryUrl: string): string {
  */
 export function configure(options: {
 	registryUrl: string;
-	apiKey: string;
+	apiKey?: string;
 }): void {
 	const baseUrl = registryUrlToBaseUrl(options.registryUrl);
 	sdkConfigure({ baseUrl, apiKey: options.apiKey });

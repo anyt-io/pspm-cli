@@ -1,5 +1,5 @@
 import { configure, listSkillVersions } from "@/api-client";
-import { getRegistryUrl, requireApiKey } from "@/config";
+import { getTokenForRegistry, resolveConfig } from "@/config";
 import { extractApiErrorMessage } from "@/errors";
 import { resolveVersion } from "@/lib/index";
 import { listLockfileSkills } from "@/lockfile";
@@ -11,8 +11,9 @@ export interface UpdateOptions {
 
 export async function update(options: UpdateOptions): Promise<void> {
 	try {
-		const apiKey = await requireApiKey();
-		const registryUrl = await getRegistryUrl();
+		const config = await resolveConfig();
+		const registryUrl = config.registryUrl;
+		const apiKey = getTokenForRegistry(config, registryUrl);
 
 		const skills = await listLockfileSkills();
 
@@ -21,7 +22,7 @@ export async function update(options: UpdateOptions): Promise<void> {
 			return;
 		}
 
-		// Configure SDK (use direct REST endpoints, not oRPC)
+		// Configure SDK - apiKey may be undefined for public packages
 		configure({ registryUrl, apiKey });
 
 		const updates: Array<{

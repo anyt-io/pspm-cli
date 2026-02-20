@@ -175,7 +175,7 @@ async function installFromLockfile(options: InstallOptions): Promise<void> {
 			}
 
 			console.log(`Resolving ${missingDeps.length} new dependency(ies)...\n`);
-			configure({ registryUrl, apiKey: apiKey ?? "" });
+			configure({ registryUrl, apiKey });
 
 			for (const { fullName, versionRange } of missingDeps) {
 				const parsed = parseSkillSpecifier(fullName);

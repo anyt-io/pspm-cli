@@ -146,10 +146,10 @@ export async function resolveRecursive(
 		conflicts: [],
 	};
 
-	// Configure API client
+	// Configure API client - apiKey may be undefined for public packages
 	configure({
 		registryUrl: config.registryUrl,
-		apiKey: config.apiKey ?? "",
+		apiKey: config.apiKey,
 	});
 
 	// Collect version ranges for each package

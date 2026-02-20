@@ -5,6 +5,17 @@ All notable changes to the PSPM CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-02-17
+
+### Changed
+
+- **Auth-free read operations**: API key is no longer required for non-write operations (`add`, `install`, `update`, `list`, `link`). Only `publish`, `unpublish`, `deprecate`, `access`, and `whoami` now require authentication.
+- Made `apiKey` parameter optional in SDK configuration, eliminating `apiKey ?? ""` workaround patterns
+
+### Fixed
+
+- `update` command no longer blocks users without a PSPM API key when they only have GitHub or public packages installed
+
 ## [0.5.1] - 2026-02-10
 
 ### Changed
