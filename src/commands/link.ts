@@ -25,10 +25,18 @@ import {
 export interface LinkOptions {
 	agent?: string;
 	yes?: boolean;
+	/** Recreate global agent symlinks */
+	global?: boolean;
 }
 
 export async function link(options: LinkOptions): Promise<void> {
 	try {
+		// Set up global mode if requested
+		if (options.global) {
+			const { setGlobalMode } = await import("@/config");
+			setGlobalMode(true);
+		}
+
 		// Read manifest for agent config overrides
 		const manifest = await readManifest();
 		const agentConfigs = manifest?.agents;
@@ -101,10 +109,14 @@ export async function link(options: LinkOptions): Promise<void> {
 			`Creating symlinks for ${skills.length} skill(s) to agent(s): ${agents.join(", ")}...`,
 		);
 
+		const globalMode = options.global ?? false;
 		await createAgentSymlinks(skills, {
 			agents,
-			projectRoot: process.cwd(),
+			projectRoot: globalMode
+				? (await import("node:os")).homedir()
+				: process.cwd(),
 			agentConfigs,
+			global: globalMode,
 		});
 
 		console.log("Symlinks created successfully.");

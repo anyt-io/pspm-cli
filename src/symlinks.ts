@@ -16,10 +16,12 @@ import type { AgentConfig } from "./lib/index";
 export interface CreateSymlinksOptions {
 	/** Agent names to create symlinks for */
 	agents: string[];
-	/** Project root directory */
+	/** Project root directory (or home directory for global installs) */
 	projectRoot: string;
 	/** Custom agent configuration overrides from pspm.json */
 	agentConfigs?: Record<string, AgentConfig>;
+	/** If true, use global agent paths (relative to home directory) */
+	global?: boolean;
 }
 
 /**
@@ -50,7 +52,7 @@ export async function createAgentSymlinks(
 	}
 
 	for (const agentName of agents) {
-		const config = resolveAgentConfig(agentName, agentConfigs);
+		const config = resolveAgentConfig(agentName, agentConfigs, options.global);
 
 		if (!config) {
 			console.warn(`Warning: Unknown agent "${agentName}", skipping symlinks`);
@@ -198,6 +200,20 @@ export function getGitHubSkillPath(
  */
 export function getLocalSkillPath(skillName: string): string {
 	return `.pspm/skills/_local/${skillName}`;
+}
+
+/**
+ * Get the source path for a well-known skill within .pspm/skills/.
+ *
+ * @param hostname - Source hostname (e.g., "acme.com")
+ * @param skillName - Skill name
+ * @returns Relative path from project root (e.g., ".pspm/skills/_wellknown/acme.com/my-skill")
+ */
+export function getWellKnownSkillPath(
+	hostname: string,
+	skillName: string,
+): string {
+	return `.pspm/skills/_wellknown/${hostname}/${skillName}`;
 }
 
 /**

@@ -19,7 +19,7 @@ export interface PspmLockfile {
 	/** JSON Schema URL for IDE validation */
 	$schema?: string;
 	/** Lockfile format version */
-	lockfileVersion: 1 | 2 | 3 | 4;
+	lockfileVersion: 1 | 2 | 3 | 4 | 5;
 	/** Registry URL used for resolution */
 	registryUrl: string;
 	/** Installed packages from registry (v2+ format) */
@@ -28,6 +28,8 @@ export interface PspmLockfile {
 	githubPackages?: Record<string, GitHubLockfileEntry>;
 	/** Installed packages from local directories (v4+ format) */
 	localPackages?: Record<string, LocalLockfileEntry>;
+	/** Installed packages from well-known endpoints (v5+ format) */
+	wellKnownPackages?: Record<string, WellKnownLockfileEntry>;
 	/** Installed skills (v1 format, deprecated) */
 	skills?: Record<string, PspmLockfileEntry>;
 }
@@ -72,4 +74,23 @@ export interface GitHubLockfileEntry extends PspmLockfileEntry {
 	gitCommit: string;
 	/** Original Git ref (branch, tag, or "latest") */
 	gitRef: string;
+}
+
+/**
+ * Lockfile entry for a well-known package.
+ * Key format in wellKnownPackages: "https://hostname#skill-name"
+ */
+export interface WellKnownLockfileEntry {
+	/** Always "well-known" for well-known packages */
+	version: "well-known";
+	/** URL to the SKILL.md file */
+	resolved: string;
+	/** Integrity hash of all file contents */
+	integrity: string;
+	/** Source hostname */
+	hostname: string;
+	/** Skill name */
+	name: string;
+	/** List of files included */
+	files: string[];
 }

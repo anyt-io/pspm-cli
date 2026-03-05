@@ -28,6 +28,7 @@ export {
 	type PspmLockfile as SkillLockfile,
 	type PspmLockfileEntry,
 	type PspmLockfileEntry as SkillLockfileEntry,
+	type WellKnownLockfileEntry,
 } from "./lockfile";
 
 // Manifest types (pspm.json)
@@ -66,8 +67,12 @@ export {
 	type GitHubSpecifier,
 	generateSkillIdentifier,
 	getGitHubSkillName,
+	isGitHubShorthand,
 	isGitHubSpecifier,
+	isGitHubUrl,
+	parseGitHubShorthand,
 	parseGitHubSpecifier,
+	parseGitHubUrl,
 	parseSkillSpecifier,
 	type SkillSpecifier,
 } from "./specifier";

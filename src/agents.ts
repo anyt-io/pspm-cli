@@ -13,8 +13,10 @@ import type { AgentConfig, BuiltInAgent } from "./lib/index";
 export interface AgentInfo {
 	/** Human-readable name for display */
 	displayName: string;
-	/** Skills directory path */
+	/** Skills directory path (project-level, relative to project root) */
 	skillsDir: string;
+	/** Global skills directory path (relative to home directory) */
+	globalSkillsDir: string;
 }
 
 /**
@@ -22,67 +24,246 @@ export interface AgentInfo {
  * These can be overridden in pspm.json under the "agents" key.
  */
 export const AGENT_INFO: Record<BuiltInAgent, AgentInfo> = {
+	adal: {
+		displayName: "AdaL",
+		skillsDir: ".adal/skills",
+		globalSkillsDir: ".adal/skills",
+	},
+	amp: {
+		displayName: "Amp",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".config/agents/skills",
+	},
+	antigravity: {
+		displayName: "Antigravity",
+		skillsDir: ".agent/skills",
+		globalSkillsDir: ".gemini/antigravity/skills",
+	},
+	augment: {
+		displayName: "Augment",
+		skillsDir: ".augment/skills",
+		globalSkillsDir: ".augment/skills",
+	},
 	"claude-code": {
 		displayName: "Claude Code",
 		skillsDir: ".claude/skills",
+		globalSkillsDir: ".claude/skills",
+	},
+	cline: {
+		displayName: "Cline",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".agents/skills",
+	},
+	codebuddy: {
+		displayName: "CodeBuddy",
+		skillsDir: ".codebuddy/skills",
+		globalSkillsDir: ".codebuddy/skills",
 	},
 	codex: {
 		displayName: "Codex",
-		skillsDir: ".codex/skills",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".codex/skills",
+	},
+	"command-code": {
+		displayName: "Command Code",
+		skillsDir: ".commandcode/skills",
+		globalSkillsDir: ".commandcode/skills",
+	},
+	continue: {
+		displayName: "Continue",
+		skillsDir: ".continue/skills",
+		globalSkillsDir: ".continue/skills",
+	},
+	cortex: {
+		displayName: "Cortex Code",
+		skillsDir: ".cortex/skills",
+		globalSkillsDir: ".snowflake/cortex/skills",
+	},
+	crush: {
+		displayName: "Crush",
+		skillsDir: ".crush/skills",
+		globalSkillsDir: ".config/crush/skills",
 	},
 	cursor: {
 		displayName: "Cursor",
-		skillsDir: ".cursor/skills",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".cursor/skills",
 	},
-	gemini: {
+	droid: {
+		displayName: "Droid",
+		skillsDir: ".factory/skills",
+		globalSkillsDir: ".factory/skills",
+	},
+	"gemini-cli": {
 		displayName: "Gemini CLI",
-		skillsDir: ".gemini/skills",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".gemini/skills",
 	},
-	kiro: {
+	"github-copilot": {
+		displayName: "GitHub Copilot",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".copilot/skills",
+	},
+	goose: {
+		displayName: "Goose",
+		skillsDir: ".goose/skills",
+		globalSkillsDir: ".config/goose/skills",
+	},
+	"iflow-cli": {
+		displayName: "iFlow CLI",
+		skillsDir: ".iflow/skills",
+		globalSkillsDir: ".iflow/skills",
+	},
+	junie: {
+		displayName: "Junie",
+		skillsDir: ".junie/skills",
+		globalSkillsDir: ".junie/skills",
+	},
+	kilo: {
+		displayName: "Kilo Code",
+		skillsDir: ".kilocode/skills",
+		globalSkillsDir: ".kilocode/skills",
+	},
+	"kimi-cli": {
+		displayName: "Kimi Code CLI",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".config/agents/skills",
+	},
+	"kiro-cli": {
 		displayName: "Kiro CLI",
 		skillsDir: ".kiro/skills",
+		globalSkillsDir: ".kiro/skills",
+	},
+	kode: {
+		displayName: "Kode",
+		skillsDir: ".kode/skills",
+		globalSkillsDir: ".kode/skills",
+	},
+	mcpjam: {
+		displayName: "MCPJam",
+		skillsDir: ".mcpjam/skills",
+		globalSkillsDir: ".mcpjam/skills",
+	},
+	"mistral-vibe": {
+		displayName: "Mistral Vibe",
+		skillsDir: ".vibe/skills",
+		globalSkillsDir: ".vibe/skills",
+	},
+	mux: {
+		displayName: "Mux",
+		skillsDir: ".mux/skills",
+		globalSkillsDir: ".mux/skills",
+	},
+	neovate: {
+		displayName: "Neovate",
+		skillsDir: ".neovate/skills",
+		globalSkillsDir: ".neovate/skills",
+	},
+	openclaw: {
+		displayName: "OpenClaw",
+		skillsDir: "skills",
+		globalSkillsDir: ".openclaw/skills",
 	},
 	opencode: {
 		displayName: "OpenCode",
-		skillsDir: ".opencode/skills",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".config/opencode/skills",
+	},
+	openhands: {
+		displayName: "OpenHands",
+		skillsDir: ".openhands/skills",
+		globalSkillsDir: ".openhands/skills",
+	},
+	pi: {
+		displayName: "Pi",
+		skillsDir: ".pi/skills",
+		globalSkillsDir: ".pi/agent/skills",
+	},
+	pochi: {
+		displayName: "Pochi",
+		skillsDir: ".pochi/skills",
+		globalSkillsDir: ".pochi/skills",
+	},
+	qoder: {
+		displayName: "Qoder",
+		skillsDir: ".qoder/skills",
+		globalSkillsDir: ".qoder/skills",
+	},
+	"qwen-code": {
+		displayName: "Qwen Code",
+		skillsDir: ".qwen/skills",
+		globalSkillsDir: ".qwen/skills",
+	},
+	replit: {
+		displayName: "Replit",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".config/agents/skills",
+	},
+	roo: {
+		displayName: "Roo Code",
+		skillsDir: ".roo/skills",
+		globalSkillsDir: ".roo/skills",
+	},
+	trae: {
+		displayName: "Trae",
+		skillsDir: ".trae/skills",
+		globalSkillsDir: ".trae/skills",
+	},
+	"trae-cn": {
+		displayName: "Trae CN",
+		skillsDir: ".trae/skills",
+		globalSkillsDir: ".trae-cn/skills",
+	},
+	universal: {
+		displayName: "Universal",
+		skillsDir: ".agents/skills",
+		globalSkillsDir: ".config/agents/skills",
+	},
+	windsurf: {
+		displayName: "Windsurf",
+		skillsDir: ".windsurf/skills",
+		globalSkillsDir: ".codeium/windsurf/skills",
+	},
+	zencoder: {
+		displayName: "Zencoder",
+		skillsDir: ".zencoder/skills",
+		globalSkillsDir: ".zencoder/skills",
 	},
 };
 
 /**
  * Default agent configurations (AgentConfig format).
  */
-export const DEFAULT_AGENT_CONFIGS: Record<BuiltInAgent, AgentConfig> = {
-	"claude-code": { skillsDir: AGENT_INFO["claude-code"].skillsDir },
-	codex: { skillsDir: AGENT_INFO.codex.skillsDir },
-	cursor: { skillsDir: AGENT_INFO.cursor.skillsDir },
-	gemini: { skillsDir: AGENT_INFO.gemini.skillsDir },
-	kiro: { skillsDir: AGENT_INFO.kiro.skillsDir },
-	opencode: { skillsDir: AGENT_INFO.opencode.skillsDir },
-};
+export const DEFAULT_AGENT_CONFIGS: Record<BuiltInAgent, AgentConfig> =
+	Object.fromEntries(
+		Object.entries(AGENT_INFO).map(([key, info]) => [
+			key,
+			{ skillsDir: info.skillsDir },
+		]),
+	) as Record<BuiltInAgent, AgentConfig>;
 
 /**
  * All built-in agent names in display order.
  */
-export const ALL_AGENTS: BuiltInAgent[] = [
-	"claude-code",
-	"codex",
-	"cursor",
-	"gemini",
-	"kiro",
-	"opencode",
-];
+export const ALL_AGENTS: BuiltInAgent[] = Object.keys(
+	AGENT_INFO,
+).sort() as BuiltInAgent[];
 
 /**
  * Resolve agent configuration by name.
  *
  * @param name - Agent name (built-in or custom)
  * @param overrides - Custom agent configurations from pspm.json
+ * @param global - If true, return global paths instead of project paths
  * @returns Agent configuration or null if not found
  *
  * @example
  * ```typescript
  * resolveAgentConfig("claude-code")
  * // => { skillsDir: ".claude/skills" }
+ *
+ * resolveAgentConfig("claude-code", undefined, true)
+ * // => { skillsDir: ".claude/skills" } (global path, used relative to ~)
  *
  * resolveAgentConfig("my-custom", { "my-custom": { skillsDir: ".myagent/prompts" } })
  * // => { skillsDir: ".myagent/prompts" }
@@ -91,15 +272,19 @@ export const ALL_AGENTS: BuiltInAgent[] = [
 export function resolveAgentConfig(
 	name: string,
 	overrides?: Record<string, AgentConfig>,
+	global?: boolean,
 ): AgentConfig | null {
-	// Check overrides first
-	if (overrides?.[name]) {
+	// Check overrides first (not applicable for global)
+	if (!global && overrides?.[name]) {
 		return overrides[name];
 	}
 
 	// Check built-in defaults
-	if (name in DEFAULT_AGENT_CONFIGS) {
-		return DEFAULT_AGENT_CONFIGS[name as BuiltInAgent];
+	if (name in AGENT_INFO) {
+		const info = AGENT_INFO[name as BuiltInAgent];
+		return {
+			skillsDir: global ? info.globalSkillsDir : info.skillsDir,
+		};
 	}
 
 	return null;
@@ -120,7 +305,7 @@ export function resolveAgentConfig(
  * // => ["none"]
  *
  * parseAgentArg(undefined)
- * // => ["claude-code", "codex", "cursor", "gemini", "kiro", "opencode"]
+ * // => [...ALL_AGENTS]
  * ```
  */
 export function parseAgentArg(agentArg?: string): string[] {

@@ -145,8 +145,8 @@ async function getFilesWithSizes(
 export interface PublishOptions {
 	bump?: "major" | "minor" | "patch";
 	tag?: string;
-	/** Set package visibility during publish */
-	access?: "public" | "private";
+	/** Set package visibility during publish (required) */
+	access: "public" | "private";
 }
 
 export async function publishCommand(options: PublishOptions): Promise<void> {

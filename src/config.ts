@@ -92,34 +92,62 @@ function getLegacyConfigPath(): string {
 	return join(homedir(), ".pspm", "config.json");
 }
 
+// =============================================================================
+// Global Mode
+// =============================================================================
+
+let _globalMode = false;
+
 /**
- * Get the .pspm directory path (for current project)
+ * Set global mode. When enabled, all path functions return
+ * home-directory paths (~/.pspm/) instead of project-relative paths.
+ */
+export function setGlobalMode(global: boolean): void {
+	_globalMode = global;
+}
+
+/**
+ * Check if global mode is enabled.
+ */
+export function isGlobalMode(): boolean {
+	return _globalMode;
+}
+
+/**
+ * Get the .pspm directory path
+ * Global: ~/.pspm/
+ * Project: ./.pspm/
  */
 export function getPspmDir(): string {
+	if (_globalMode) return join(homedir(), ".pspm");
 	return join(process.cwd(), ".pspm");
 }
 
 /**
- * Get the skills directory path (for current project)
- * New path: .pspm/skills/
+ * Get the skills directory path
+ * Global: ~/.pspm/skills/
+ * Project: ./.pspm/skills/
  */
 export function getSkillsDir(): string {
-	return join(process.cwd(), ".pspm", "skills");
+	return join(getPspmDir(), "skills");
 }
 
 /**
- * Get the cache directory path (for current project)
- * Used for tarball caching: .pspm/cache/
+ * Get the cache directory path
+ * Global: ~/.pspm/cache/
+ * Project: ./.pspm/cache/
  */
 export function getCacheDir(): string {
-	return join(process.cwd(), ".pspm", "cache");
+	return join(getPspmDir(), "cache");
 }
 
 /**
- * Get the lockfile path (for current project)
- * New path: pspm-lock.json (at project root, npm-style)
+ * Get the lockfile path
+ * Global: ~/.pspm/pspm-lock.json
+ * Project: ./pspm-lock.json
  */
 export function getLockfilePath(): string {
+	if (_globalMode) return join(homedir(), ".pspm", "pspm-lock.json");
 	return join(process.cwd(), "pspm-lock.json");
 }
 
