@@ -1,11 +1,18 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
+import { isGlobalMode } from "./config";
 import type { PspmManifest } from "./lib/index";
 
 /**
- * Get the manifest file path (pspm.json in current directory)
+ * Get the manifest file path
+ * Global: ~/.pspm/pspm.json
+ * Project: ./pspm.json
  */
 export function getManifestPath(): string {
+	if (isGlobalMode()) {
+		return join(homedir(), ".pspm", "pspm.json");
+	}
 	return join(process.cwd(), "pspm.json");
 }
 
@@ -213,6 +220,79 @@ export async function removeLocalDependency(
 	}
 
 	delete manifest.localDependencies[specifier];
+	await writeManifest(manifest);
+	return true;
+}
+
+// =============================================================================
+// Well-Known Dependency Support
+// =============================================================================
+
+/**
+ * Get all well-known dependencies from the manifest
+ */
+export async function getWellKnownDependencies(): Promise<
+	Record<string, string[] | string>
+> {
+	const manifest = await readManifest();
+	return manifest?.wellKnownDependencies ?? {};
+}
+
+/**
+ * Add a well-known dependency to the manifest
+ *
+ * @param baseUrl - The well-known base URL (e.g., "https://acme.com")
+ * @param skillNames - Skill names to add (e.g., ["code-review"])
+ */
+export async function addWellKnownDependency(
+	baseUrl: string,
+	skillNames: string[],
+): Promise<void> {
+	const manifest = await ensureManifest();
+
+	if (!manifest.wellKnownDependencies) {
+		manifest.wellKnownDependencies = {};
+	}
+
+	const existing = manifest.wellKnownDependencies[baseUrl];
+	if (Array.isArray(existing)) {
+		// Merge with existing, dedup
+		const merged = [...new Set([...existing, ...skillNames])];
+		manifest.wellKnownDependencies[baseUrl] = merged;
+	} else {
+		manifest.wellKnownDependencies[baseUrl] = skillNames;
+	}
+
+	await writeManifest(manifest);
+}
+
+/**
+ * Remove a well-known dependency from the manifest
+ */
+export async function removeWellKnownDependency(
+	baseUrl: string,
+	skillName?: string,
+): Promise<boolean> {
+	const manifest = await readManifest();
+
+	if (!manifest?.wellKnownDependencies?.[baseUrl]) {
+		return false;
+	}
+
+	if (skillName) {
+		const existing = manifest.wellKnownDependencies[baseUrl];
+		if (Array.isArray(existing)) {
+			manifest.wellKnownDependencies[baseUrl] = existing.filter(
+				(n) => n !== skillName,
+			);
+			if ((manifest.wellKnownDependencies[baseUrl] as string[]).length === 0) {
+				delete manifest.wellKnownDependencies[baseUrl];
+			}
+		}
+	} else {
+		delete manifest.wellKnownDependencies[baseUrl];
+	}
+
 	await writeManifest(manifest);
 	return true;
 }

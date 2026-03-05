@@ -5,6 +5,74 @@ All notable changes to the PSPM CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-03-05
+
+### Added
+
+- **GitHub URL support**: Install skills by pasting GitHub URLs directly from the browser
+  - `pspm add https://github.com/owner/repo` — full repo URL
+  - `pspm add https://github.com/owner/repo/tree/main/path/to/skill` — tree URL with branch and path
+- **GitHub shorthand**: Install skills with concise `owner/repo` format
+  - `pspm add vercel-labs/agent-skills` — entire repo
+  - `pspm add vercel-labs/agent-skills/skills/web-design` — subdirectory within repo
+- **Local path shorthand**: Install from local directories without `file:` prefix
+  - `pspm add ./my-skill` and `pspm add ../shared-skills` now work directly
+- **Global install mode**: Install skills to your home directory for use across all projects
+  - `-g, --global` flag on `add`, `install`, `list`, and `link` commands
+  - Global skills stored in `~/.pspm/skills/`, symlinked to `~/<agent>/skills/`
+- **Well-known skills discovery**: Install skills from any domain serving `/.well-known/skills/index.json`
+  - `pspm add https://acme.com` — discovers and installs skills via RFC 8615
+  - `wellKnownDependencies` in `pspm.json` and `wellKnownPackages` in lockfile (v5)
+- **`search` command**: Search and discover skills from the registry
+  - `pspm search typescript` — search by keyword
+  - `pspm search --sort recent --limit 10` — sort and limit results
+  - `--json` flag for machine-readable output
+- **`audit` command**: Verify integrity of installed skills
+  - Checks for missing packages, deprecated versions, corrupted installations
+  - `--json` flag for CI integration
+- **Expanded agent support**: From 6 to 41 supported AI coding agents
+  - Added Windsurf, Amp, Augment, Cline, Continue, Goose, Kilo Code, Kiro CLI, OpenCode, OpenHands, Replit, Roo Code, Trae, and 22 more
+
+### Changed
+
+- Lockfile version bumped to 5 to support `wellKnownPackages`
+- All GitHub input formats (URL, shorthand, prefix) normalize to canonical `github:owner/repo[/path][@ref]`
+
+## [0.8.0] - 2026-03-05
+
+### Added
+
+- **`upgrade` command**: Self-update pspm to the latest version with automatic package manager detection
+  - `pspm upgrade` - Detects and uses your package manager (pnpm, npm, yarn, bun)
+  - Supports both global and npx installations
+- **Update notifier**: Background check against npm registry every 24 hours warns when a newer version is available
+
+## [0.7.3] - 2026-03-05
+
+### Fixed
+
+- **Fix publish 404 error**: Rebuilt CLI with correct SDK paths after route redesign. The publish endpoint changed from `/api/skills/publish` to `/api/skills/-/publish` but the previous npm release was built with stale code.
+
+## [0.7.2] - 2026-03-02
+
+### Fixed
+
+- **Fix npm install failure**: Moved `@repo/pspm-types` and `@repo/skill-registry` from `dependencies` to `devDependencies` to prevent npm from trying to install workspace-only packages from the public registry
+
+## [0.7.1] - 2026-03-02
+
+### Added
+
+- **`outdated` command**: Check for outdated packages in your project
+  - Shows installed vs latest versions for registry, GitHub, and local dependencies
+  - Helps identify which packages need updating
+
+## [0.7.0] - 2026-02-25
+
+### Changed
+
+- **BREAKING: `--access` is now required for `pspm publish`** — You must explicitly specify `--access public` or `--access private` when publishing. Previously, omitting `--access` would default to public (free users) or private (pro users). This prevents accidental public publishes.
+
 ## [0.6.0] - 2026-02-17
 
 ### Changed

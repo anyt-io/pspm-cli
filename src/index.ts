@@ -7,6 +7,7 @@ import { Command } from "commander";
 import {
 	access,
 	add,
+	audit,
 	configInit,
 	configShow,
 	deprecate,
@@ -17,13 +18,17 @@ import {
 	login,
 	logout,
 	migrate,
+	outdated,
 	publish,
 	remove,
+	search,
 	unpublish,
 	update,
+	upgrade,
 	version as versionCommand,
 	whoami,
 } from "./commands/index";
+import { checkForUpdates } from "./update-notifier";
 
 // Read version from package.json
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -62,6 +67,17 @@ configCmd
 		await configInit({
 			registry: options.registry,
 		});
+	});
+
+// =============================================================================
+// Self-upgrade
+// =============================================================================
+
+program
+	.command("upgrade")
+	.description("Upgrade pspm to the latest version")
+	.action(async () => {
+		await upgrade();
 	});
 
 // =============================================================================
@@ -132,19 +148,21 @@ program
 program
 	.command("add <specifiers...>")
 	.description(
-		"Add one or more skills (e.g., @user/bsheng/vite_slides@^2.0.0 or github:owner/repo/path@ref)",
+		"Add skills from registry, GitHub, local paths, or well-known URLs",
 	)
 	.option("--save", "Save to lockfile (default)")
 	.option(
 		"--agent <agents>",
 		'Comma-separated agents for symlinks (default: all agents, use "none" to skip)',
 	)
+	.option("-g, --global", "Install to user home directory instead of project")
 	.option("-y, --yes", "Skip agent selection prompt and use defaults")
 	.action(async (specifiers, options) => {
 		await add(specifiers, {
 			save: options.save ?? true,
 			agent: options.agent,
 			yes: options.yes,
+			global: options.global,
 		});
 	});
 
@@ -161,8 +179,9 @@ program
 	.alias("ls")
 	.description("List installed skills")
 	.option("--json", "Output as JSON")
+	.option("-g, --global", "List globally installed skills")
 	.action(async (options) => {
-		await list({ json: options.json });
+		await list({ json: options.json, global: options.global });
 	});
 
 program
@@ -177,6 +196,7 @@ program
 		"--agent <agents>",
 		'Comma-separated agents for symlinks (default: all agents, use "none" to skip)',
 	)
+	.option("-g, --global", "Install to user home directory instead of project")
 	.option("-y, --yes", "Skip agent selection prompt and use defaults")
 	.action(async (specifiers, options) => {
 		await install(specifiers, {
@@ -184,6 +204,7 @@ program
 			dir: options.dir,
 			agent: options.agent,
 			yes: options.yes,
+			global: options.global,
 		});
 	});
 
@@ -194,9 +215,14 @@ program
 		"--agent <agents>",
 		'Comma-separated agents for symlinks (default: all agents, use "none" to skip)',
 	)
+	.option("-g, --global", "Recreate global agent symlinks")
 	.option("-y, --yes", "Skip agent selection prompt and use defaults")
 	.action(async (options) => {
-		await link({ agent: options.agent, yes: options.yes });
+		await link({
+			agent: options.agent,
+			yes: options.yes,
+			global: options.global,
+		});
 	});
 
 program
@@ -205,6 +231,41 @@ program
 	.option("--dry-run", "Show what would be updated without making changes")
 	.action(async (options) => {
 		await update({ dryRun: options.dryRun });
+	});
+
+program
+	.command("search [query]")
+	.alias("find")
+	.description("Search and discover skills from the registry")
+	.option(
+		"-s, --sort <sort>",
+		"Sort by: downloads, recent, name (default: downloads)",
+	)
+	.option("-l, --limit <n>", "Maximum results (default: 20)", Number.parseInt)
+	.option("--json", "Output as JSON")
+	.action(async (query: string | undefined, options) => {
+		await search(query, {
+			sort: options.sort,
+			limit: options.limit,
+			json: options.json,
+		});
+	});
+
+program
+	.command("audit")
+	.description("Verify integrity of installed skills and check for issues")
+	.option("--json", "Output as JSON")
+	.action(async (options) => {
+		await audit({ json: options.json });
+	});
+
+program
+	.command("outdated [packages...]")
+	.description("Check for outdated skills")
+	.option("--json", "Output as JSON")
+	.option("--all", "Include up-to-date packages")
+	.action(async (packages: string[], options) => {
+		await outdated(packages, { json: options.json, all: options.all });
 	});
 
 // =============================================================================
@@ -232,12 +293,20 @@ program
 	.description("Publish current directory as a skill")
 	.option("--bump <level>", "Bump version (major, minor, patch)")
 	.option("--tag <tag>", "Tag for the release")
-	.option("--access <level>", "Set package visibility (public or private)")
+	.requiredOption(
+		"--access <level>",
+		"Set package visibility (public or private)",
+	)
 	.action(async (options) => {
+		const access = options.access as string;
+		if (access !== "public" && access !== "private") {
+			console.error('Error: --access must be "public" or "private"');
+			process.exit(1);
+		}
 		await publish({
 			bump: options.bump as "major" | "minor" | "patch" | undefined,
 			tag: options.tag,
-			access: options.access as "public" | "private" | undefined,
+			access,
 		});
 	});
 
@@ -273,4 +342,6 @@ program
 		await deprecate(specifier, message, { undo: options.undo });
 	});
 
-program.parse();
+// Parse and execute command, then check for updates
+await program.parseAsync();
+await checkForUpdates(version);

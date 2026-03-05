@@ -51,13 +51,15 @@ The CLI is a Commander.js application that manages prompt skills for AI coding a
 | `install` | Install from lockfile or add packages |
 | `link` | Recreate agent symlinks |
 | `update` | Update skills to latest versions |
-| `publish` | Publish skill to registry |
+| `outdated` | Check for outdated skills (`--json`, `--all`) |
+| `publish` | Publish skill to registry (requires `--access`) |
 | `unpublish` | Remove published version |
 | `access` | Change package visibility |
 | `deprecate` | Mark version as deprecated |
 | `version` | Bump package version (major, minor, patch) |
 | `config show` | Show resolved configuration |
 | `config init` | Create .pspmrc file |
+| `upgrade` | Self-update pspm to latest version (auto-detects package manager) |
 
 ### Library (src/lib/)
 
@@ -65,7 +67,7 @@ Core utilities with comprehensive tests:
 
 - `ignore.ts` - `.pspmignore` / `.gitignore` pattern loading and filtering
 - `integrity.ts` - SHA256 integrity hash calculation
-- `lockfile.ts` - Lockfile types and parsing
+- `lockfile.ts` - Lockfile types and parsing, `PSPM_LOCKFILE_SCHEMA_URL` constant for IDE validation
 - `manifest.ts` - Manifest types and validation
 - `specifier.ts` - Package specifier parsing
 - `version.ts` - Semver version resolution
@@ -73,7 +75,7 @@ Core utilities with comprehensive tests:
 
 ## SDK Integration
 
-The CLI uses a local SDK generated from the server's OpenAPI spec:
+The CLI uses a local SDK generated from the server's OpenAPI spec. API key is optional for public package operations:
 
 ```typescript
 // src/api-client.ts wraps the SDK
@@ -88,13 +90,23 @@ import {
   // ... other generated SDK functions
 } from "./sdk/generated";
 
-// CLI-specific helpers
-export function configure(config: SDKConfig): void {
+// CLI-specific helpers — apiKey is optional (public packages don't need it)
+export function configure(options: {
+  registryUrl: string;
+  apiKey?: string;
+}): void {
   sdkConfigure({
-    baseUrl: config.registryUrl,
-    apiKey: config.apiKey,
+    baseUrl: options.registryUrl,
+    apiKey: options.apiKey,
   });
 }
+```
+
+### Username-Scoped API Endpoints
+API calls for deprecate, undeprecate, changeAccess, deleteSkill, and deleteSkillVersion now require a `username` parameter. URLs follow the pattern:
+```
+/api/skills/@user/{username}/{name}/versions/{version}/deprecate
+/api/skills/@user/{username}/{name}/access
 ```
 
 To regenerate the SDK after API changes:
@@ -124,7 +136,7 @@ pnpm test                # Run all tests
 pnpm test -- --watch     # Watch mode
 ```
 
-Test files are colocated in `src/lib/*.test.ts`.
+Test files are colocated in `src/lib/*.test.ts` and `src/commands/*.test.ts`.
 
 ## Configuration Files
 
@@ -172,4 +184,4 @@ import { resolveConfig } from "@/config";
 
 Configured in `tsconfig.json` and `vitest.config.ts`.
 
-<!-- @doc-sync: 9c7eea570623d2a3e016cd0544490571877243ca | 2026-01-29 12:00 -->
+<!-- @doc-sync: 3995048 | 2026-03-04 16:30 -->

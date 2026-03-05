@@ -189,8 +189,140 @@ export function getGitHubSkillName(spec: GitHubSpecifier): string {
 }
 
 /**
- * Check if a string is a GitHub specifier
+ * Check if a string is a GitHub specifier (github: prefix)
  */
 export function isGitHubSpecifier(specifier: string): boolean {
 	return specifier.startsWith("github:");
+}
+
+// =============================================================================
+// GitHub URL and Shorthand Support
+// =============================================================================
+
+/**
+ * GitHub URL patterns
+ *
+ * Matches:
+ * - https://github.com/owner/repo/tree/branch/path/to/skill
+ * - https://github.com/owner/repo/tree/branch
+ * - https://github.com/owner/repo
+ * - https://github.com/owner/repo.git
+ */
+const GITHUB_URL_TREE_PATTERN =
+	/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)(?:\/(.+))?$/;
+const GITHUB_URL_PATTERN =
+	/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/;
+
+/**
+ * GitHub shorthand pattern: owner/repo or owner/repo/path
+ * Must not contain :, not start with . / or @
+ */
+const GITHUB_SHORTHAND_PATTERN =
+	/^([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)(?:\/(.+))?$/;
+
+/**
+ * Check if a string is a GitHub URL (https://github.com/...)
+ */
+export function isGitHubUrl(input: string): boolean {
+	return /^https?:\/\/github\.com\/[^/]+\/[^/]+/.test(input);
+}
+
+/**
+ * Parse a GitHub URL into a GitHubSpecifier.
+ *
+ * Supports:
+ * - https://github.com/owner/repo
+ * - https://github.com/owner/repo.git
+ * - https://github.com/owner/repo/tree/branch
+ * - https://github.com/owner/repo/tree/branch/path/to/skill
+ *
+ * @example
+ * ```typescript
+ * parseGitHubUrl("https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design")
+ * // => { owner: "vercel-labs", repo: "agent-skills", ref: "main", path: "skills/web-design" }
+ *
+ * parseGitHubUrl("https://github.com/vercel-labs/agent-skills")
+ * // => { owner: "vercel-labs", repo: "agent-skills" }
+ * ```
+ */
+export function parseGitHubUrl(input: string): GitHubSpecifier | null {
+	// Try tree URL first (more specific)
+	const treeMatch = input.match(GITHUB_URL_TREE_PATTERN);
+	if (treeMatch) {
+		const [, owner, repo, ref, path] = treeMatch;
+		if (!owner || !repo || !ref) return null;
+		return {
+			owner,
+			repo,
+			ref,
+			path: path || undefined,
+		};
+	}
+
+	// Plain repo URL
+	const repoMatch = input.match(GITHUB_URL_PATTERN);
+	if (repoMatch) {
+		const [, owner, repo] = repoMatch;
+		if (!owner || !repo) return null;
+		return { owner, repo };
+	}
+
+	return null;
+}
+
+/**
+ * Check if a string is a GitHub shorthand (owner/repo or owner/repo/path).
+ *
+ * Must not contain colons (protocol prefix), not start with `.`, `/`, or `@`.
+ * This avoids conflicts with local paths, registry specifiers, and URLs.
+ */
+export function isGitHubShorthand(input: string): boolean {
+	if (
+		input.includes(":") ||
+		input.startsWith(".") ||
+		input.startsWith("/") ||
+		input.startsWith("@")
+	) {
+		return false;
+	}
+	return GITHUB_SHORTHAND_PATTERN.test(input);
+}
+
+/**
+ * Parse a GitHub shorthand into a GitHubSpecifier.
+ *
+ * Supports:
+ * - owner/repo
+ * - owner/repo/path/to/skill
+ *
+ * @example
+ * ```typescript
+ * parseGitHubShorthand("vercel-labs/agent-skills")
+ * // => { owner: "vercel-labs", repo: "agent-skills" }
+ *
+ * parseGitHubShorthand("vercel-labs/agent-skills/skills/web-design")
+ * // => { owner: "vercel-labs", repo: "agent-skills", path: "skills/web-design" }
+ * ```
+ */
+export function parseGitHubShorthand(input: string): GitHubSpecifier | null {
+	if (
+		input.includes(":") ||
+		input.startsWith(".") ||
+		input.startsWith("/") ||
+		input.startsWith("@")
+	) {
+		return null;
+	}
+
+	const match = input.match(GITHUB_SHORTHAND_PATTERN);
+	if (!match) return null;
+
+	const [, owner, repo, path] = match;
+	if (!owner || !repo) return null;
+
+	return {
+		owner,
+		repo,
+		path: path || undefined,
+	};
 }

@@ -27,12 +27,47 @@ export interface AgentConfig {
  * Built-in agent types with predefined configurations
  */
 export type BuiltInAgent =
+	| "adal"
+	| "amp"
+	| "antigravity"
+	| "augment"
 	| "claude-code"
+	| "cline"
+	| "codebuddy"
 	| "codex"
+	| "command-code"
+	| "continue"
+	| "cortex"
+	| "crush"
 	| "cursor"
-	| "gemini"
-	| "kiro"
-	| "opencode";
+	| "droid"
+	| "gemini-cli"
+	| "github-copilot"
+	| "goose"
+	| "iflow-cli"
+	| "junie"
+	| "kilo"
+	| "kimi-cli"
+	| "kiro-cli"
+	| "kode"
+	| "mcpjam"
+	| "mistral-vibe"
+	| "mux"
+	| "neovate"
+	| "openclaw"
+	| "opencode"
+	| "openhands"
+	| "pi"
+	| "pochi"
+	| "qoder"
+	| "qwen-code"
+	| "replit"
+	| "roo"
+	| "trae"
+	| "trae-cn"
+	| "universal"
+	| "windsurf"
+	| "zencoder";
 
 /**
  * PSPM Manifest schema for pspm.json
@@ -128,6 +163,24 @@ export interface PspmManifest {
 	 * ```
 	 */
 	localDependencies?: Record<string, string>;
+
+	/**
+	 * Well-known skill dependencies from HTTPS domains.
+	 *
+	 * Skills hosted at /.well-known/skills/ on any domain.
+	 * Key is the base URL, value is an array of skill names (or "*" for all).
+	 *
+	 * @example
+	 * ```json
+	 * {
+	 *   "wellKnownDependencies": {
+	 *     "https://acme.com": ["code-review", "api-design"],
+	 *     "https://docs.stripe.com": "*"
+	 *   }
+	 * }
+	 * ```
+	 */
+	wellKnownDependencies?: Record<string, string[] | string>;
 
 	/**
 	 * Custom agent configuration overrides.
@@ -231,6 +284,7 @@ export function normalizeManifest(manifest: PspmManifest): PspmManifest {
 		dependencies: manifest.dependencies ?? {},
 		githubDependencies: manifest.githubDependencies ?? {},
 		localDependencies: manifest.localDependencies ?? {},
+		wellKnownDependencies: manifest.wellKnownDependencies ?? {},
 		private: manifest.private ?? false,
 	};
 }

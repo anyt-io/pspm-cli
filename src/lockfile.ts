@@ -11,6 +11,7 @@ import {
 	PSPM_LOCKFILE_SCHEMA_URL,
 	type PspmLockfile,
 	type PspmLockfileEntry,
+	type WellKnownLockfileEntry,
 } from "./lib/index";
 
 // Re-export types for backward compatibility
@@ -19,6 +20,7 @@ export type {
 	LocalLockfileEntry,
 	PspmLockfile,
 	PspmLockfileEntry,
+	WellKnownLockfileEntry,
 };
 
 /**
@@ -158,6 +160,14 @@ export async function writeLockfile(lockfile: PspmLockfile): Promise<void> {
 		Object.keys(lockfile.localPackages).length > 0
 	) {
 		normalized.localPackages = lockfile.localPackages;
+	}
+
+	// Only include wellKnownPackages if there are entries
+	if (
+		lockfile.wellKnownPackages &&
+		Object.keys(lockfile.wellKnownPackages).length > 0
+	) {
+		normalized.wellKnownPackages = lockfile.wellKnownPackages;
 	}
 
 	await writeFile(lockfilePath, `${JSON.stringify(normalized, null, 2)}\n`);
@@ -377,4 +387,63 @@ export async function listLockfileLocalPackages(): Promise<
 		specifier,
 		entry: entry as LocalLockfileEntry,
 	}));
+}
+
+// =============================================================================
+// Well-Known Package Support
+// =============================================================================
+
+/**
+ * Add a well-known package to the lockfile
+ */
+export async function addWellKnownToLockfile(
+	specifier: string,
+	entry: WellKnownLockfileEntry,
+): Promise<void> {
+	let lockfile = await readLockfile();
+	if (!lockfile) {
+		lockfile = await createEmptyLockfile();
+	}
+
+	if (!lockfile.wellKnownPackages) {
+		lockfile.wellKnownPackages = {};
+	}
+
+	lockfile.wellKnownPackages[specifier] = entry;
+	await writeLockfile(lockfile);
+}
+
+/**
+ * Remove a well-known package from the lockfile
+ */
+export async function removeWellKnownFromLockfile(
+	specifier: string,
+): Promise<boolean> {
+	const lockfile = await readLockfile();
+	if (!lockfile?.wellKnownPackages?.[specifier]) {
+		return false;
+	}
+
+	delete lockfile.wellKnownPackages[specifier];
+	await writeLockfile(lockfile);
+	return true;
+}
+
+/**
+ * List all well-known packages in the lockfile
+ */
+export async function listLockfileWellKnownPackages(): Promise<
+	Array<{ specifier: string; entry: WellKnownLockfileEntry }>
+> {
+	const lockfile = await readLockfile();
+	if (!lockfile?.wellKnownPackages) {
+		return [];
+	}
+
+	return Object.entries(lockfile.wellKnownPackages).map(
+		([specifier, entry]) => ({
+			specifier,
+			entry: entry as WellKnownLockfileEntry,
+		}),
+	);
 }

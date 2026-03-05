@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseAgentArg, promptForAgents } from "@/agents";
 import { configure, getSkillVersion, listSkillVersions } from "@/api-client";
@@ -7,6 +8,7 @@ import {
 	getCacheDir,
 	getSkillsDir,
 	getTokenForRegistry,
+	isGlobalMode,
 	resolveConfig,
 } from "@/config";
 import { extractApiErrorMessage } from "@/errors";
@@ -109,12 +111,20 @@ export interface InstallOptions {
 	dir?: string;
 	agent?: string;
 	yes?: boolean;
+	/** Install globally (to ~/.pspm/ with global agent paths) */
+	global?: boolean;
 }
 
 export async function install(
 	specifiers: string[],
 	options: InstallOptions,
 ): Promise<void> {
+	// Set up global mode if requested
+	if (options.global) {
+		const { setGlobalMode } = await import("@/config");
+		setGlobalMode(true);
+	}
+
 	// If specifiers are provided, delegate to add command
 	if (specifiers.length > 0) {
 		const { add } = await import("./add.js");
@@ -122,6 +132,7 @@ export async function install(
 			save: true,
 			agent: options.agent,
 			yes: options.yes,
+			global: options.global,
 		});
 		return;
 	}
@@ -594,12 +605,16 @@ async function installFromLockfile(options: InstallOptions): Promise<void> {
 		// Phase 5: Create agent symlinks
 		// =================================================================
 		if (installedSkills.length > 0 && agents[0] !== "none") {
-			console.log(`\nCreating symlinks for agent(s): ${agents.join(", ")}...`);
+			const globalMode = isGlobalMode();
+			console.log(
+				`\nCreating symlinks for agent(s): ${agents.join(", ")}${globalMode ? " (global)" : ""}...`,
+			);
 
 			await createAgentSymlinks(installedSkills, {
 				agents,
-				projectRoot: process.cwd(),
+				projectRoot: globalMode ? homedir() : process.cwd(),
 				agentConfigs,
+				global: globalMode,
 			});
 
 			console.log("  Symlinks created.");

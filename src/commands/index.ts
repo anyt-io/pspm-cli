@@ -1,5 +1,6 @@
 export { type AccessOptions, access } from "./access";
 export { type AddOptions, add } from "./add";
+export { type AuditOptions, audit } from "./audit";
 export {
 	type ConfigInitOptions,
 	configInit,
@@ -13,9 +14,12 @@ export { type ListOptions, list } from "./list";
 export { type LoginOptions, login } from "./login";
 export { logout } from "./logout";
 export { type MigrateOptions, migrate } from "./migrate";
+export { type OutdatedOptions, outdated } from "./outdated";
 export { type PublishOptions, publish } from "./publish";
 export { remove } from "./remove";
+export { type SearchOptions, search } from "./search";
 export { type UnpublishOptions, unpublish } from "./unpublish";
 export { type UpdateOptions, update } from "./update";
+export { upgrade } from "./upgrade";
 export { type VersionBump, type VersionOptions, version } from "./version";
 export { whoami } from "./whoami";

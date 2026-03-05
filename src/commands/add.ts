@@ -1,8 +1,15 @@
 import { mkdir, rm, stat, symlink } from "node:fs/promises";
+import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { parseAgentArg, promptForAgents } from "@/agents";
 import { configure, getSkillVersion, listSkillVersions } from "@/api-client";
-import { getSkillsDir, getTokenForRegistry, resolveConfig } from "@/config";
+import {
+	getSkillsDir,
+	getTokenForRegistry,
+	isGlobalMode,
+	resolveConfig,
+	setGlobalMode,
+} from "@/config";
 import { extractApiErrorMessage } from "@/errors";
 import {
 	downloadGitHubPackage,
@@ -15,24 +22,31 @@ import {
 	formatGitHubSpecifier,
 	type GitHubLockfileEntry,
 	getGitHubSkillName,
+	isGitHubShorthand,
 	isGitHubSpecifier,
+	isGitHubUrl,
 	type LocalLockfileEntry,
 	MAX_DEPENDENCY_DEPTH,
+	parseGitHubShorthand,
 	parseGitHubSpecifier,
+	parseGitHubUrl,
 	parseSkillSpecifier,
 	printResolutionErrors,
 	resolveRecursive,
 	resolveVersion,
+	type WellKnownLockfileEntry,
 } from "@/lib/index";
 import {
 	addGitHubToLockfile,
 	addLocalToLockfile,
 	addToLockfileWithDeps,
+	addWellKnownToLockfile,
 } from "@/lockfile";
 import {
 	addDependency,
 	addGitHubDependency,
 	addLocalDependency,
+	addWellKnownDependency,
 	readManifest,
 } from "@/manifest";
 import {
@@ -40,8 +54,18 @@ import {
 	getGitHubSkillPath,
 	getLocalSkillPath,
 	getRegistrySkillPath,
+	getWellKnownSkillPath,
 	type SkillInfo,
 } from "@/symlinks";
+import {
+	calculateWellKnownIntegrity,
+	extractWellKnownSkill,
+	fetchWellKnownSkills,
+	getWellKnownDisplayName,
+	getWellKnownHostname,
+	isWellKnownSpecifier,
+	type WellKnownSkill,
+} from "@/wellknown";
 
 /**
  * Check if a specifier is a local file reference
@@ -78,6 +102,8 @@ export interface AddOptions {
 	save?: boolean;
 	agent?: string;
 	yes?: boolean;
+	/** Install globally (to ~/.pspm/ with global agent paths) */
+	global?: boolean;
 }
 
 /** Resolved package info from validation phase */
@@ -120,15 +146,30 @@ interface ResolvedLocalPackage {
 	name: string;
 }
 
+interface ResolvedWellKnownPackage {
+	type: "wellknown";
+	specifier: string;
+	hostname: string;
+	skills: WellKnownSkill[];
+	resolvedBaseUrl: string;
+}
+
 type ResolvedPackage =
 	| ResolvedRegistryPackage
 	| ResolvedGitHubPackage
-	| ResolvedLocalPackage;
+	| ResolvedLocalPackage
+	| ResolvedWellKnownPackage;
 
 export async function add(
 	specifiers: string[],
 	options: AddOptions,
 ): Promise<void> {
+	// Set up global mode if requested
+	if (options.global) {
+		setGlobalMode(true);
+		console.log("Installing globally to ~/.pspm/\n");
+	}
+
 	// Phase 1: Validate and resolve all packages first
 	console.log("Resolving packages...\n");
 
@@ -140,8 +181,15 @@ export async function add(
 			if (isLocalSpecifier(specifier)) {
 				const resolved = await validateLocalPackage(specifier);
 				resolvedPackages.push(resolved);
-			} else if (isGitHubSpecifier(specifier)) {
+			} else if (
+				isGitHubSpecifier(specifier) ||
+				isGitHubUrl(specifier) ||
+				isGitHubShorthand(specifier)
+			) {
 				const resolved = await validateGitHubPackage(specifier);
+				resolvedPackages.push(resolved);
+			} else if (isWellKnownSpecifier(specifier)) {
+				const resolved = await validateWellKnownPackage(specifier);
 				resolvedPackages.push(resolved);
 			} else {
 				const resolved = await validateRegistryPackage(specifier);
@@ -180,6 +228,9 @@ export async function add(
 	);
 	const localPackages = resolvedPackages.filter(
 		(p): p is ResolvedLocalPackage => p.type === "local",
+	);
+	const wellKnownPackages = resolvedPackages.filter(
+		(p): p is ResolvedWellKnownPackage => p.type === "wellknown",
 	);
 
 	let resolutionResult: Awaited<ReturnType<typeof resolveRecursive>> | null =
@@ -308,6 +359,25 @@ export async function add(
 		}
 	}
 
+	// Install well-known packages (fetch from HTTPS domains)
+	for (const resolved of wellKnownPackages) {
+		try {
+			await installWellKnownPackage(resolved, {
+				...options,
+				resolvedAgents: agents,
+			});
+			results.push({ specifier: resolved.specifier, success: true });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Unknown error";
+			results.push({
+				specifier: resolved.specifier,
+				success: false,
+				error: message,
+			});
+			console.error(`Failed to install ${resolved.specifier}: ${message}\n`);
+		}
+	}
+
 	// Print summary if multiple packages were requested
 	if (specifiers.length > 1) {
 		const succeeded = results.filter((r) => r.success).length;
@@ -323,6 +393,14 @@ export async function add(
 
 interface InternalAddOptions extends AddOptions {
 	resolvedAgents: string[];
+}
+
+/**
+ * Get the root directory for symlink creation.
+ * Global: home directory. Project: current working directory.
+ */
+function getSymlinkRoot(): string {
+	return isGlobalMode() ? homedir() : process.cwd();
 }
 
 interface InternalAddOptionsWithDirect extends InternalAddOptions {
@@ -442,8 +520,9 @@ async function installFromNode(
 
 		await createAgentSymlinks([skillInfo], {
 			agents,
-			projectRoot: process.cwd(),
+			projectRoot: getSymlinkRoot(),
 			agentConfigs: skillManifest?.agents,
+			global: isGlobalMode(),
 		});
 	}
 
@@ -542,15 +621,48 @@ async function validateRegistryPackage(
 }
 
 /**
+ * Parse any GitHub input format into a GitHubSpecifier.
+ *
+ * Accepts:
+ * - github:owner/repo[/path][@ref]  (canonical prefix format)
+ * - https://github.com/owner/repo   (full URL)
+ * - https://github.com/owner/repo/tree/branch/path  (tree URL)
+ * - owner/repo[/path]               (shorthand)
+ */
+function parseAnyGitHubFormat(
+	specifier: string,
+): ReturnType<typeof parseGitHubSpecifier> {
+	// Try canonical github: prefix first
+	if (isGitHubSpecifier(specifier)) {
+		return parseGitHubSpecifier(specifier);
+	}
+
+	// Try GitHub URL (https://github.com/...)
+	if (isGitHubUrl(specifier)) {
+		return parseGitHubUrl(specifier);
+	}
+
+	// Try shorthand (owner/repo[/path])
+	if (isGitHubShorthand(specifier)) {
+		return parseGitHubShorthand(specifier);
+	}
+
+	return null;
+}
+
+/**
  * Validate and download a GitHub package
  */
 async function validateGitHubPackage(
 	specifier: string,
 ): Promise<ResolvedGitHubPackage> {
-	const parsed = parseGitHubSpecifier(specifier);
+	const parsed = parseAnyGitHubFormat(specifier);
 	if (!parsed) {
 		throw new Error(
-			`Invalid GitHub specifier "${specifier}". Use format: github:{owner}/{repo}[/{path}][@{ref}]`,
+			`Invalid GitHub specifier "${specifier}". Supported formats:\n` +
+				`  github:owner/repo[/path][@ref]\n` +
+				`  https://github.com/owner/repo[/tree/branch/path]\n` +
+				`  owner/repo[/path]`,
 		);
 	}
 
@@ -625,8 +737,9 @@ async function installGitHubPackage(
 
 		await createAgentSymlinks([skillInfo], {
 			agents,
-			projectRoot: process.cwd(),
+			projectRoot: getSymlinkRoot(),
 			agentConfigs: manifest?.agents,
+			global: isGlobalMode(),
 		});
 	}
 
@@ -761,11 +874,102 @@ async function installLocalPackage(
 
 		await createAgentSymlinks([skillInfo], {
 			agents,
-			projectRoot: process.cwd(),
+			projectRoot: getSymlinkRoot(),
 			agentConfigs: manifest?.agents,
+			global: isGlobalMode(),
 		});
 	}
 
 	console.log(`Installed ${specifier} (local)`);
 	console.log(`Location: ${symlinkPath} -> ${resolvedPath}`);
+}
+
+// =============================================================================
+// Well-Known Package Support
+// =============================================================================
+
+/**
+ * Validate and fetch skills from a well-known endpoint
+ */
+async function validateWellKnownPackage(
+	specifier: string,
+): Promise<ResolvedWellKnownPackage> {
+	const hostname = getWellKnownHostname(specifier);
+	console.log(`Discovering skills from ${hostname}...`);
+
+	const result = await fetchWellKnownSkills(specifier);
+	if (!result) {
+		throw new Error(
+			`No well-known skills found at ${specifier}\n  Expected: ${specifier}/.well-known/skills/index.json`,
+		);
+	}
+
+	console.log(
+		`Found ${result.skills.length} skill(s) from ${hostname}: ${result.skills.map((s) => s.name).join(", ")}`,
+	);
+
+	return {
+		type: "wellknown",
+		specifier,
+		hostname: result.hostname,
+		skills: result.skills,
+		resolvedBaseUrl: result.resolvedBaseUrl,
+	};
+}
+
+/**
+ * Install pre-validated well-known skills
+ */
+async function installWellKnownPackage(
+	resolved: ResolvedWellKnownPackage,
+	options: InternalAddOptions,
+): Promise<void> {
+	const { specifier, hostname, skills } = resolved;
+	const skillsDir = getSkillsDir();
+
+	for (const skill of skills) {
+		console.log(
+			`Installing ${getWellKnownDisplayName(hostname, skill.name)}...`,
+		);
+
+		// Extract to .pspm/skills/_wellknown/{hostname}/{skill-name}/
+		const destPath = await extractWellKnownSkill(skill, hostname, skillsDir);
+
+		// Calculate integrity hash
+		const integrity = calculateWellKnownIntegrity(skill);
+
+		// Add to lockfile
+		const lockfileKey = `${specifier}#${skill.name}`;
+		const entry: WellKnownLockfileEntry = {
+			version: "well-known",
+			resolved: skill.sourceUrl,
+			integrity,
+			hostname,
+			name: skill.name,
+			files: [...skill.files.keys()],
+		};
+		await addWellKnownToLockfile(lockfileKey, entry);
+
+		// Add to pspm.json wellKnownDependencies
+		await addWellKnownDependency(specifier, [skill.name]);
+
+		// Create agent symlinks
+		const agents = options.resolvedAgents;
+		if (agents[0] !== "none") {
+			const manifest = await readManifest();
+			const skillInfo: SkillInfo = {
+				name: skill.name,
+				sourcePath: getWellKnownSkillPath(hostname, skill.name),
+			};
+
+			await createAgentSymlinks([skillInfo], {
+				agents,
+				projectRoot: process.cwd(),
+				agentConfigs: manifest?.agents,
+			});
+		}
+
+		console.log(`Installed ${getWellKnownDisplayName(hostname, skill.name)}`);
+		console.log(`Location: ${destPath}`);
+	}
 }
