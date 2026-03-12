@@ -1,7 +1,7 @@
 import {
   checkOutdated as checkOutdatedFn,
   type OutdatedResult,
-} from "@repo/skill-registry/client";
+} from "@/lib/outdated";
 import { getTokenForRegistry, resolveConfig } from "@/config";
 import { readLockfile } from "@/lockfile";
 import { readManifest } from "@/manifest";

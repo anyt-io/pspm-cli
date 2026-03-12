@@ -8,7 +8,7 @@
  * - Topological sort for installation order
  */
 
-import { parseRegistrySpecifier } from "@repo/pspm-types";
+import { parseRegistrySpecifier } from "./specifier";
 import {
   configure,
   getGithubSkillVersion,
