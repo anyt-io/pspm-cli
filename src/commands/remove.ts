@@ -11,184 +11,188 @@ import { join } from "node:path";
 import { getAvailableAgents } from "@/agents";
 import { getSkillsDir } from "@/config";
 import {
-	getGitHubSkillName,
-	isGitHubSpecifier,
-	parseGitHubSpecifier,
+  getGitHubSkillName,
+  isGitHubSpecifier,
+  isRegistrySpecifier,
+  parseGitHubSpecifier,
+  parseRegistrySpecifier,
 } from "@/lib/index";
 import {
-	listLockfileGitHubPackages,
-	listLockfileSkills,
-	removeFromLockfile,
-	removeGitHubFromLockfile,
+  listLockfileGitHubPackages,
+  listLockfileSkills,
+  removeFromLockfile,
+  removeGitHubFromLockfile,
 } from "@/lockfile";
 import {
-	readManifest,
-	removeDependency,
-	removeGitHubDependency,
+  readManifest,
+  removeDependency,
+  removeGitHubDependency,
 } from "@/manifest";
 import { getGitHubSkillPath, removeAgentSymlinks } from "@/symlinks";
 
 export async function remove(nameOrSpecifier: string): Promise<void> {
-	try {
-		// Read manifest for agent config overrides
-		const manifest = await readManifest();
-		const agentConfigs = manifest?.agents;
-		const agents = getAvailableAgents(agentConfigs);
+  try {
+    // Read manifest for agent config overrides
+    const manifest = await readManifest();
+    const agentConfigs = manifest?.agents;
+    const agents = getAvailableAgents(agentConfigs);
 
-		// Determine type of specifier
-		if (isGitHubSpecifier(nameOrSpecifier)) {
-			await removeGitHub(nameOrSpecifier, agents, agentConfigs);
-		} else if (nameOrSpecifier.startsWith("@user/")) {
-			await removeRegistry(nameOrSpecifier, agents, agentConfigs);
-		} else {
-			// Short name - try to find in either registry or GitHub skills
-			await removeByShortName(nameOrSpecifier, agents, agentConfigs);
-		}
-	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		console.error(`Error: ${message}`);
-		process.exit(1);
-	}
+    // Determine type of specifier
+    if (isGitHubSpecifier(nameOrSpecifier)) {
+      await removeGitHub(nameOrSpecifier, agents, agentConfigs);
+    } else if (isRegistrySpecifier(nameOrSpecifier)) {
+      await removeRegistry(nameOrSpecifier, agents, agentConfigs);
+    } else {
+      // Short name - try to find in either registry or GitHub skills
+      await removeByShortName(nameOrSpecifier, agents, agentConfigs);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
 }
 
 /**
  * Remove a registry skill by full specifier.
  */
 async function removeRegistry(
-	specifier: string,
-	agents: string[],
-	agentConfigs?: Record<string, { skillsDir: string }>,
+  specifier: string,
+  agents: string[],
+  agentConfigs?: Record<string, { skillsDir: string }>,
 ): Promise<void> {
-	const match = specifier.match(/^@user\/([^/]+)\/([^@/]+)/);
-	if (!match) {
-		console.error(`Error: Invalid skill specifier: ${specifier}`);
-		process.exit(1);
-	}
+  const parsed = parseRegistrySpecifier(specifier);
+  if (!parsed) {
+    console.error(`Error: Invalid skill specifier: ${specifier}`);
+    process.exit(1);
+  }
 
-	const fullName = `@user/${match[1]}/${match[2]}`;
-	const username = match[1];
-	const name = match[2];
+  const { namespace, owner, name } = parsed;
+  const fullName = `@${namespace}/${owner}/${name}`;
 
-	console.log(`Removing ${fullName}...`);
+  console.log(`Removing ${fullName}...`);
 
-	// Remove from lockfile
-	const removedFromLockfile = await removeFromLockfile(fullName);
+  // Remove from lockfile
+  const removedFromLockfile = await removeFromLockfile(fullName);
 
-	// Remove from pspm.json dependencies
-	const removedFromManifest = await removeDependency(fullName);
+  // Remove from pspm.json dependencies
+  const removedFromManifest = await removeDependency(fullName);
 
-	if (!removedFromLockfile && !removedFromManifest) {
-		console.error(`Error: ${fullName} not found in lockfile or pspm.json`);
-		process.exit(1);
-	}
+  if (!removedFromLockfile && !removedFromManifest) {
+    console.error(`Error: ${fullName} not found in lockfile or pspm.json`);
+    process.exit(1);
+  }
 
-	// Remove symlinks from all agents
-	await removeAgentSymlinks(name, {
-		agents,
-		projectRoot: process.cwd(),
-		agentConfigs,
-	});
+  // Remove symlinks from all agents
+  await removeAgentSymlinks(name, {
+    agents,
+    projectRoot: process.cwd(),
+    agentConfigs,
+  });
 
-	// Remove from disk
-	const skillsDir = getSkillsDir();
-	const destDir = join(skillsDir, username, name);
+  // Remove from disk
+  const skillsDir = getSkillsDir();
+  const destDir =
+    namespace === "org"
+      ? join(skillsDir, "_org", owner, name)
+      : join(skillsDir, owner, name);
 
-	try {
-		await rm(destDir, { recursive: true, force: true });
-	} catch {
-		// Ignore errors if directory doesn't exist
-	}
+  try {
+    await rm(destDir, { recursive: true, force: true });
+  } catch {
+    // Ignore errors if directory doesn't exist
+  }
 
-	console.log(`Removed ${fullName}`);
+  console.log(`Removed ${fullName}`);
 }
 
 /**
  * Remove a GitHub skill by specifier.
  */
 async function removeGitHub(
-	specifier: string,
-	agents: string[],
-	agentConfigs?: Record<string, { skillsDir: string }>,
+  specifier: string,
+  agents: string[],
+  agentConfigs?: Record<string, { skillsDir: string }>,
 ): Promise<void> {
-	const parsed = parseGitHubSpecifier(specifier);
-	if (!parsed) {
-		console.error(`Error: Invalid GitHub specifier: ${specifier}`);
-		process.exit(1);
-	}
+  const parsed = parseGitHubSpecifier(specifier);
+  if (!parsed) {
+    console.error(`Error: Invalid GitHub specifier: ${specifier}`);
+    process.exit(1);
+  }
 
-	// Build the lockfile key (without ref)
-	const lockfileKey = parsed.path
-		? `github:${parsed.owner}/${parsed.repo}/${parsed.path}`
-		: `github:${parsed.owner}/${parsed.repo}`;
+  // Build the lockfile key (without ref)
+  const lockfileKey = parsed.path
+    ? `github:${parsed.owner}/${parsed.repo}/${parsed.path}`
+    : `github:${parsed.owner}/${parsed.repo}`;
 
-	console.log(`Removing ${lockfileKey}...`);
+  console.log(`Removing ${lockfileKey}...`);
 
-	// Remove from lockfile
-	const removedFromLockfile = await removeGitHubFromLockfile(lockfileKey);
+  // Remove from lockfile
+  const removedFromLockfile = await removeGitHubFromLockfile(lockfileKey);
 
-	// Remove from pspm.json githubDependencies
-	const removedFromManifest = await removeGitHubDependency(lockfileKey);
+  // Remove from pspm.json githubDependencies
+  const removedFromManifest = await removeGitHubDependency(lockfileKey);
 
-	if (!removedFromLockfile && !removedFromManifest) {
-		console.error(`Error: ${lockfileKey} not found in lockfile or pspm.json`);
-		process.exit(1);
-	}
+  if (!removedFromLockfile && !removedFromManifest) {
+    console.error(`Error: ${lockfileKey} not found in lockfile or pspm.json`);
+    process.exit(1);
+  }
 
-	// Remove symlinks from all agents
-	const skillName = getGitHubSkillName(parsed);
-	await removeAgentSymlinks(skillName, {
-		agents,
-		projectRoot: process.cwd(),
-		agentConfigs,
-	});
+  // Remove symlinks from all agents
+  const skillName = getGitHubSkillName(parsed);
+  await removeAgentSymlinks(skillName, {
+    agents,
+    projectRoot: process.cwd(),
+    agentConfigs,
+  });
 
-	// Remove from disk
-	const skillsDir = getSkillsDir();
-	const destPath = getGitHubSkillPath(parsed.owner, parsed.repo, parsed.path);
-	const destDir = join(skillsDir, "..", destPath);
+  // Remove from disk
+  const skillsDir = getSkillsDir();
+  const destPath = getGitHubSkillPath(parsed.owner, parsed.repo, parsed.path);
+  const destDir = join(skillsDir, "..", destPath);
 
-	try {
-		await rm(destDir, { recursive: true, force: true });
-	} catch {
-		// Ignore errors if directory doesn't exist
-	}
+  try {
+    await rm(destDir, { recursive: true, force: true });
+  } catch {
+    // Ignore errors if directory doesn't exist
+  }
 
-	console.log(`Removed ${lockfileKey}`);
+  console.log(`Removed ${lockfileKey}`);
 }
 
 /**
  * Remove a skill by short name (searches both registry and GitHub skills).
  */
 async function removeByShortName(
-	shortName: string,
-	agents: string[],
-	agentConfigs?: Record<string, { skillsDir: string }>,
+  shortName: string,
+  agents: string[],
+  agentConfigs?: Record<string, { skillsDir: string }>,
 ): Promise<void> {
-	// First try to find in registry skills
-	const registrySkills = await listLockfileSkills();
-	const foundRegistry = registrySkills.find((s) => {
-		const match = s.name.match(/^@user\/([^/]+)\/([^/]+)$/);
-		return match && match[2] === shortName;
-	});
+  // First try to find in registry skills
+  const registrySkills = await listLockfileSkills();
+  const foundRegistry = registrySkills.find((s) => {
+    const parsed = parseRegistrySpecifier(s.name);
+    return parsed && parsed.name === shortName;
+  });
 
-	if (foundRegistry) {
-		await removeRegistry(foundRegistry.name, agents, agentConfigs);
-		return;
-	}
+  if (foundRegistry) {
+    await removeRegistry(foundRegistry.name, agents, agentConfigs);
+    return;
+  }
 
-	// Try to find in GitHub skills
-	const githubSkills = await listLockfileGitHubPackages();
-	const foundGitHub = githubSkills.find((s) => {
-		const parsed = parseGitHubSpecifier(s.specifier);
-		if (!parsed) return false;
-		return getGitHubSkillName(parsed) === shortName;
-	});
+  // Try to find in GitHub skills
+  const githubSkills = await listLockfileGitHubPackages();
+  const foundGitHub = githubSkills.find((s) => {
+    const parsed = parseGitHubSpecifier(s.specifier);
+    if (!parsed) return false;
+    return getGitHubSkillName(parsed) === shortName;
+  });
 
-	if (foundGitHub) {
-		await removeGitHub(foundGitHub.specifier, agents, agentConfigs);
-		return;
-	}
+  if (foundGitHub) {
+    await removeGitHub(foundGitHub.specifier, agents, agentConfigs);
+    return;
+  }
 
-	console.error(`Error: Skill "${shortName}" not found in lockfile`);
-	process.exit(1);
+  console.error(`Error: Skill "${shortName}" not found in lockfile`);
+  process.exit(1);
 }

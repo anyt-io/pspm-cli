@@ -15,21 +15,21 @@ import ignore, { type Ignore } from "ignore";
  * Files/directories that are always ignored regardless of ignore file contents
  */
 const ALWAYS_IGNORED = [
-	"node_modules",
-	".git",
-	".pspm-publish", // temp directory used during publish
+  "node_modules",
+  ".git",
+  ".pspm-publish", // temp directory used during publish
 ];
 
 /**
  * Result of loading ignore patterns
  */
 export interface IgnoreLoadResult {
-	/** The ignore instance with loaded patterns */
-	ig: Ignore;
-	/** Which file the patterns came from (null if using defaults only) */
-	source: ".pspmignore" | ".gitignore" | null;
-	/** Raw patterns loaded from the file (excluding defaults) */
-	patterns: string[];
+  /** The ignore instance with loaded patterns */
+  ig: Ignore;
+  /** Which file the patterns came from (null if using defaults only) */
+  source: ".pspmignore" | ".gitignore" | null;
+  /** Raw patterns loaded from the file (excluding defaults) */
+  patterns: string[];
 }
 
 /**
@@ -44,36 +44,36 @@ export interface IgnoreLoadResult {
  * @returns An ignore instance and the source file used
  */
 export async function loadIgnorePatterns(
-	cwd: string = process.cwd(),
+  cwd: string = process.cwd(),
 ): Promise<IgnoreLoadResult> {
-	const ig = ignore();
+  const ig = ignore();
 
-	// Always add default ignores
-	ig.add(ALWAYS_IGNORED);
+  // Always add default ignores
+  ig.add(ALWAYS_IGNORED);
 
-	// Try .pspmignore first
-	const pspmIgnorePath = join(cwd, ".pspmignore");
-	try {
-		const content = await readFile(pspmIgnorePath, "utf-8");
-		const patterns = parseIgnorePatterns(content);
-		ig.add(patterns);
-		return { ig, source: ".pspmignore", patterns };
-	} catch {
-		// .pspmignore not found, try .gitignore
-	}
+  // Try .pspmignore first
+  const pspmIgnorePath = join(cwd, ".pspmignore");
+  try {
+    const content = await readFile(pspmIgnorePath, "utf-8");
+    const patterns = parseIgnorePatterns(content);
+    ig.add(patterns);
+    return { ig, source: ".pspmignore", patterns };
+  } catch {
+    // .pspmignore not found, try .gitignore
+  }
 
-	// Fallback to .gitignore
-	const gitIgnorePath = join(cwd, ".gitignore");
-	try {
-		const content = await readFile(gitIgnorePath, "utf-8");
-		const patterns = parseIgnorePatterns(content);
-		ig.add(patterns);
-		return { ig, source: ".gitignore", patterns };
-	} catch {
-		// No .gitignore either, use defaults only
-	}
+  // Fallback to .gitignore
+  const gitIgnorePath = join(cwd, ".gitignore");
+  try {
+    const content = await readFile(gitIgnorePath, "utf-8");
+    const patterns = parseIgnorePatterns(content);
+    ig.add(patterns);
+    return { ig, source: ".gitignore", patterns };
+  } catch {
+    // No .gitignore either, use defaults only
+  }
 
-	return { ig, source: null, patterns: [] };
+  return { ig, source: null, patterns: [] };
 }
 
 /**
@@ -83,10 +83,10 @@ export async function loadIgnorePatterns(
  * @returns Array of --exclude='pattern' arguments for rsync
  */
 export function getExcludeArgsForRsync(patterns: string[]): string {
-	// Always include the essential excludes
-	const allPatterns = [...new Set([...ALWAYS_IGNORED, ...patterns])];
+  // Always include the essential excludes
+  const allPatterns = [...new Set([...ALWAYS_IGNORED, ...patterns])];
 
-	return allPatterns.map((p) => `--exclude='${p}'`).join(" ");
+  return allPatterns.map((p) => `--exclude='${p}'`).join(" ");
 }
 
 /**
@@ -96,10 +96,10 @@ export function getExcludeArgsForRsync(patterns: string[]): string {
  * @returns String of --exclude='pattern' arguments for tar
  */
 export function getExcludeArgsForTar(patterns: string[]): string {
-	// Same as rsync
-	const allPatterns = [...new Set([...ALWAYS_IGNORED, ...patterns])];
+  // Same as rsync
+  const allPatterns = [...new Set([...ALWAYS_IGNORED, ...patterns])];
 
-	return allPatterns.map((p) => `--exclude='${p}'`).join(" ");
+  return allPatterns.map((p) => `--exclude='${p}'`).join(" ");
 }
 
 /**
@@ -110,25 +110,10 @@ export function getExcludeArgsForTar(patterns: string[]): string {
  * @returns Array of patterns
  */
 export function parseIgnorePatterns(content: string): string[] {
-	return content
-		.split("\n")
-		.map((line) => line.trim())
-		.filter((line) => line && !line.startsWith("#"));
-}
-
-/**
- * Read patterns from an ignore file
- *
- * @param filePath - Path to the ignore file
- * @returns Array of patterns, or empty array if file doesn't exist
- */
-export async function readIgnoreFile(filePath: string): Promise<string[]> {
-	try {
-		const content = await readFile(filePath, "utf-8");
-		return parseIgnorePatterns(content);
-	} catch {
-		return [];
-	}
+  return content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
 }
 
 export { ALWAYS_IGNORED };

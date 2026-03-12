@@ -1,6 +1,6 @@
-# PSPM - Prompt Skill Package Manager
+# PSPM - Package manager for AI agent skills
 
-The package manager for the open agent skills ecosystem.
+Version control. Dependencies. Private registries. Inspired by pnpm.
 
 Supports **Claude Code**, **Cursor**, **Codex**, **Gemini CLI**, **Windsurf**, and [30+ more agents](#supported-agents).
 
@@ -9,7 +9,7 @@ Supports **Claude Code**, **Cursor**, **Codex**, **Gemini CLI**, **Windsurf**, a
 ## Install a Skill
 
 ```bash
-npx @anytio/pspm add vercel-labs/agent-skills
+npx @anytio/pspm add @user/anyt/youtube-downloader
 ```
 
 ### Source Formats

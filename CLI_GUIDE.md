@@ -1,6 +1,6 @@
 # PSPM CLI Guide
 
-PSPM (Prompt Skill Package Manager) is a CLI tool for managing prompt skills across AI coding agents. It provides commands for authentication, configuration, skill management, and publishing.
+PSPM is a package manager for AI agent skills. It provides commands for authentication, configuration, skill management, and publishing across AI coding agents.
 
 ## Installation
 
@@ -17,7 +17,7 @@ npx @anytio/pspm <command>
 ```
 Usage: pspm [options] [command]
 
-Prompt Skill Package Manager for AI coding agents
+Package manager for AI agent skills
 
 Options:
   -V, --version                              output the version number

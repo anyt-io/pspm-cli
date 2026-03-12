@@ -2,9 +2,9 @@ export { type AccessOptions, access } from "./access";
 export { type AddOptions, add } from "./add";
 export { type AuditOptions, audit } from "./audit";
 export {
-	type ConfigInitOptions,
-	configInit,
-	configShow,
+  type ConfigInitOptions,
+  configInit,
+  configShow,
 } from "./config/index";
 export { type DeprecateOptions, deprecate } from "./deprecate";
 export { type InitOptions, init } from "./init";
