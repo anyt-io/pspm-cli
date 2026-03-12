@@ -9,126 +9,135 @@
 
 import { parseAgentArg, promptForAgents } from "@/agents";
 import {
-	getGitHubSkillName,
-	parseGitHubSpecifier,
-	parseSkillSpecifier,
+  getGitHubSkillName,
+  parseGitHubSpecifier,
+  parseRegistrySpecifier,
 } from "@/lib/index";
 import { listLockfileGitHubPackages, listLockfileSkills } from "@/lockfile";
 import { readManifest } from "@/manifest";
 import {
-	createAgentSymlinks,
-	getGitHubSkillPath,
-	getRegistrySkillPath,
-	type SkillInfo,
+  createAgentSymlinks,
+  getGitHubSkillPath,
+  getRegistrySkillPath,
+  type SkillInfo,
 } from "@/symlinks";
 
 export interface LinkOptions {
-	agent?: string;
-	yes?: boolean;
-	/** Recreate global agent symlinks */
-	global?: boolean;
+  agent?: string;
+  yes?: boolean;
+  /** Recreate global agent symlinks */
+  global?: boolean;
 }
 
 export async function link(options: LinkOptions): Promise<void> {
-	try {
-		// Set up global mode if requested
-		if (options.global) {
-			const { setGlobalMode } = await import("@/config");
-			setGlobalMode(true);
-		}
+  try {
+    // Set up global mode if requested
+    if (options.global) {
+      const { setGlobalMode } = await import("@/config");
+      setGlobalMode(true);
+    }
 
-		// Read manifest for agent config overrides
-		const manifest = await readManifest();
-		const agentConfigs = manifest?.agents;
+    // Read manifest for agent config overrides
+    const manifest = await readManifest();
+    const agentConfigs = manifest?.agents;
 
-		// Determine which agents to use
-		let agents: string[];
-		if (options.agent) {
-			// If --agent flag is provided, use it
-			agents = parseAgentArg(options.agent);
-		} else if (manifest) {
-			// If pspm.json exists, use default agent (respect manifest's agent config)
-			agents = parseAgentArg(undefined);
-		} else if (options.yes) {
-			// If -y flag is used, use default agent without prompting
-			agents = parseAgentArg(undefined);
-		} else {
-			// No pspm.json exists, prompt user to select agents
-			console.log("No pspm.json found. Let's set up your project.\n");
-			agents = await promptForAgents();
-		}
+    // Determine which agents to use
+    let agents: string[];
+    if (options.agent) {
+      // If --agent flag is provided, use it
+      agents = parseAgentArg(options.agent);
+    } else if (manifest) {
+      // If pspm.json exists, use default agent (respect manifest's agent config)
+      agents = parseAgentArg(undefined);
+    } else if (options.yes) {
+      // If -y flag is used, use default agent without prompting
+      agents = parseAgentArg(undefined);
+    } else {
+      // No pspm.json exists, prompt user to select agents
+      console.log("No pspm.json found. Let's set up your project.\n");
+      agents = await promptForAgents();
+    }
 
-		// Skip if "none" agent
-		if (agents.length === 1 && agents[0] === "none") {
-			console.log("Skipping symlink creation (--agent none)");
-			return;
-		}
+    // Skip if "none" agent
+    if (agents.length === 1 && agents[0] === "none") {
+      console.log("Skipping symlink creation (--agent none)");
+      return;
+    }
 
-		// Collect all installed skills
-		const skills: SkillInfo[] = [];
+    // Collect all installed skills
+    const skills: SkillInfo[] = [];
 
-		// Get registry skills from lockfile
-		const registrySkills = await listLockfileSkills();
-		for (const { name } of registrySkills) {
-			const parsed = parseSkillSpecifier(name);
-			if (!parsed) {
-				console.warn(`Warning: Invalid skill name in lockfile: ${name}`);
-				continue;
-			}
+    // Get registry skills from lockfile
+    const registrySkills = await listLockfileSkills();
+    for (const { name } of registrySkills) {
+      const parsed = parseRegistrySpecifier(name);
+      if (!parsed) {
+        console.warn(`Warning: Invalid skill name in lockfile: ${name}`);
+        continue;
+      }
 
-			skills.push({
-				name: parsed.name,
-				sourcePath: getRegistrySkillPath(parsed.username, parsed.name),
-			});
-		}
+      const effectiveName = parsed.subname ?? parsed.name;
+      const pathName =
+        parsed.namespace === "github" && parsed.subname
+          ? `${parsed.name}/${parsed.subname}`
+          : parsed.name;
+      skills.push({
+        name: effectiveName,
+        sourcePath: getRegistrySkillPath(
+          parsed.namespace,
+          parsed.owner,
+          pathName,
+        ),
+      });
+    }
 
-		// Get GitHub skills from lockfile
-		const githubSkills = await listLockfileGitHubPackages();
-		for (const { specifier } of githubSkills) {
-			const parsed = parseGitHubSpecifier(specifier);
-			if (!parsed) {
-				console.warn(
-					`Warning: Invalid GitHub specifier in lockfile: ${specifier}`,
-				);
-				continue;
-			}
+    // Get GitHub skills from lockfile
+    const githubSkills = await listLockfileGitHubPackages();
+    for (const { specifier } of githubSkills) {
+      const parsed = parseGitHubSpecifier(specifier);
+      if (!parsed) {
+        console.warn(
+          `Warning: Invalid GitHub specifier in lockfile: ${specifier}`,
+        );
+        continue;
+      }
 
-			const skillName = getGitHubSkillName(parsed);
-			skills.push({
-				name: skillName,
-				sourcePath: getGitHubSkillPath(parsed.owner, parsed.repo, parsed.path),
-			});
-		}
+      const skillName = getGitHubSkillName(parsed);
+      skills.push({
+        name: skillName,
+        sourcePath: getGitHubSkillPath(parsed.owner, parsed.repo, parsed.path),
+      });
+    }
 
-		if (skills.length === 0) {
-			console.log("No skills found in lockfile. Nothing to link.");
-			return;
-		}
+    if (skills.length === 0) {
+      console.log("No skills found in lockfile. Nothing to link.");
+      return;
+    }
 
-		console.log(
-			`Creating symlinks for ${skills.length} skill(s) to agent(s): ${agents.join(", ")}...`,
-		);
+    console.log(
+      `Creating symlinks for ${skills.length} skill(s) to agent(s): ${agents.join(", ")}...`,
+    );
 
-		const globalMode = options.global ?? false;
-		await createAgentSymlinks(skills, {
-			agents,
-			projectRoot: globalMode
-				? (await import("node:os")).homedir()
-				: process.cwd(),
-			agentConfigs,
-			global: globalMode,
-		});
+    const globalMode = options.global ?? false;
+    await createAgentSymlinks(skills, {
+      agents,
+      projectRoot: globalMode
+        ? (await import("node:os")).homedir()
+        : process.cwd(),
+      agentConfigs,
+      global: globalMode,
+    });
 
-		console.log("Symlinks created successfully.");
+    console.log("Symlinks created successfully.");
 
-		// List created symlinks
-		console.log("\nLinked skills:");
-		for (const skill of skills) {
-			console.log(`  ${skill.name} -> ${skill.sourcePath}`);
-		}
-	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		console.error(`Error: ${message}`);
-		process.exit(1);
-	}
+    // List created symlinks
+    console.log("\nLinked skills:");
+    for (const skill of skills) {
+      console.log(`  ${skill.name} -> ${skill.sourcePath}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
 }

@@ -5,6 +5,26 @@ All notable changes to the PSPM CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-03-10
+
+### Changed
+
+- Switch indent style from tabs to spaces across codebase
+- Rebrand to "Package manager for AI agent skills"
+- Update all dependencies to latest versions
+- Remove unused code identified by knip
+
+### Added
+
+- GitHub skill indexer with admin API and CLI support
+- Multi-namespace support (`@user`, `@org`, `@github`)
+
+## [0.9.1] - 2026-03-05
+
+### Fixed
+
+- **Fix contradictory upgrade messages**: `pspm upgrade` no longer shows "Update available: 0.9.0 → 0.8.0" after saying "Already on the latest version". Used semver comparison instead of string equality so the update notifier and upgrade command only suggest upgrades (not downgrades). Skipped the update notifier when running the `upgrade` command itself.
+
 ## [0.9.0] - 2026-03-05
 
 ### Added

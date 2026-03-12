@@ -14,24 +14,24 @@ import type { AgentConfig } from "./lib/index";
  * Options for creating agent symlinks.
  */
 export interface CreateSymlinksOptions {
-	/** Agent names to create symlinks for */
-	agents: string[];
-	/** Project root directory (or home directory for global installs) */
-	projectRoot: string;
-	/** Custom agent configuration overrides from pspm.json */
-	agentConfigs?: Record<string, AgentConfig>;
-	/** If true, use global agent paths (relative to home directory) */
-	global?: boolean;
+  /** Agent names to create symlinks for */
+  agents: string[];
+  /** Project root directory (or home directory for global installs) */
+  projectRoot: string;
+  /** Custom agent configuration overrides from pspm.json */
+  agentConfigs?: Record<string, AgentConfig>;
+  /** If true, use global agent paths (relative to home directory) */
+  global?: boolean;
 }
 
 /**
  * Information about an installed skill for symlinking.
  */
 export interface SkillInfo {
-	/** Skill name (used as symlink name) */
-	name: string;
-	/** Path to skill within .pspm/skills/ (relative to project root) */
-	sourcePath: string;
+  /** Skill name (used as symlink name) */
+  name: string;
+  /** Path to skill within .pspm/skills/ (relative to project root) */
+  sourcePath: string;
 }
 
 /**
@@ -41,39 +41,39 @@ export interface SkillInfo {
  * @param options - Symlink creation options
  */
 export async function createAgentSymlinks(
-	skills: SkillInfo[],
-	options: CreateSymlinksOptions,
+  skills: SkillInfo[],
+  options: CreateSymlinksOptions,
 ): Promise<void> {
-	const { agents, projectRoot, agentConfigs } = options;
+  const { agents, projectRoot, agentConfigs } = options;
 
-	// Skip if "none" agent
-	if (agents.length === 1 && agents[0] === "none") {
-		return;
-	}
+  // Skip if "none" agent
+  if (agents.length === 1 && agents[0] === "none") {
+    return;
+  }
 
-	for (const agentName of agents) {
-		const config = resolveAgentConfig(agentName, agentConfigs, options.global);
+  for (const agentName of agents) {
+    const config = resolveAgentConfig(agentName, agentConfigs, options.global);
 
-		if (!config) {
-			console.warn(`Warning: Unknown agent "${agentName}", skipping symlinks`);
-			continue;
-		}
+    if (!config) {
+      console.warn(`Warning: Unknown agent "${agentName}", skipping symlinks`);
+      continue;
+    }
 
-		const agentSkillsDir = join(projectRoot, config.skillsDir);
+    const agentSkillsDir = join(projectRoot, config.skillsDir);
 
-		// Create agent skills directory
-		await mkdir(agentSkillsDir, { recursive: true });
+    // Create agent skills directory
+    await mkdir(agentSkillsDir, { recursive: true });
 
-		for (const skill of skills) {
-			const symlinkPath = join(agentSkillsDir, skill.name);
-			const targetPath = join(projectRoot, skill.sourcePath);
+    for (const skill of skills) {
+      const symlinkPath = join(agentSkillsDir, skill.name);
+      const targetPath = join(projectRoot, skill.sourcePath);
 
-			// Calculate relative path from symlink location to target
-			const relativeTarget = relative(dirname(symlinkPath), targetPath);
+      // Calculate relative path from symlink location to target
+      const relativeTarget = relative(dirname(symlinkPath), targetPath);
 
-			await createSymlink(symlinkPath, relativeTarget, skill.name);
-		}
-	}
+      await createSymlink(symlinkPath, relativeTarget, skill.name);
+    }
+  }
 }
 
 /**
@@ -84,41 +84,41 @@ export async function createAgentSymlinks(
  * @param skillName - Name for logging
  */
 async function createSymlink(
-	symlinkPath: string,
-	target: string,
-	skillName: string,
+  symlinkPath: string,
+  target: string,
+  skillName: string,
 ): Promise<void> {
-	try {
-		// Check if something exists at the symlink path
-		const stats = await lstat(symlinkPath).catch(() => null);
+  try {
+    // Check if something exists at the symlink path
+    const stats = await lstat(symlinkPath).catch(() => null);
 
-		if (stats) {
-			if (stats.isSymbolicLink()) {
-				// Check if it points to the correct target
-				const existingTarget = await readlink(symlinkPath);
-				if (existingTarget === target) {
-					// Already correct, nothing to do
-					return;
-				}
-				// Remove incorrect symlink
-				await rm(symlinkPath);
-			} else {
-				// Regular file or directory exists - warn and skip
-				console.warn(
-					`Warning: File exists at symlink path for "${skillName}", skipping: ${symlinkPath}`,
-				);
-				return;
-			}
-		}
+    if (stats) {
+      if (stats.isSymbolicLink()) {
+        // Check if it points to the correct target
+        const existingTarget = await readlink(symlinkPath);
+        if (existingTarget === target) {
+          // Already correct, nothing to do
+          return;
+        }
+        // Remove incorrect symlink
+        await rm(symlinkPath);
+      } else {
+        // Regular file or directory exists - warn and skip
+        console.warn(
+          `Warning: File exists at symlink path for "${skillName}", skipping: ${symlinkPath}`,
+        );
+        return;
+      }
+    }
 
-		// Create the symlink
-		await symlink(target, symlinkPath);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		console.warn(
-			`Warning: Failed to create symlink for "${skillName}": ${message}`,
-		);
-	}
+    // Create the symlink
+    await symlink(target, symlinkPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `Warning: Failed to create symlink for "${skillName}": ${message}`,
+    );
+  }
 }
 
 /**
@@ -128,49 +128,69 @@ async function createSymlink(
  * @param options - Symlink options
  */
 export async function removeAgentSymlinks(
-	skillName: string,
-	options: CreateSymlinksOptions,
+  skillName: string,
+  options: CreateSymlinksOptions,
 ): Promise<void> {
-	const { agents, projectRoot, agentConfigs } = options;
+  const { agents, projectRoot, agentConfigs } = options;
 
-	// Skip if "none" agent
-	if (agents.length === 1 && agents[0] === "none") {
-		return;
-	}
+  // Skip if "none" agent
+  if (agents.length === 1 && agents[0] === "none") {
+    return;
+  }
 
-	for (const agentName of agents) {
-		const config = resolveAgentConfig(agentName, agentConfigs);
+  for (const agentName of agents) {
+    const config = resolveAgentConfig(agentName, agentConfigs);
 
-		if (!config) {
-			continue;
-		}
+    if (!config) {
+      continue;
+    }
 
-		const symlinkPath = join(projectRoot, config.skillsDir, skillName);
+    const symlinkPath = join(projectRoot, config.skillsDir, skillName);
 
-		try {
-			const stats = await lstat(symlinkPath).catch(() => null);
+    try {
+      const stats = await lstat(symlinkPath).catch(() => null);
 
-			if (stats?.isSymbolicLink()) {
-				await rm(symlinkPath);
-			}
-		} catch {
-			// Ignore errors - symlink may not exist
-		}
-	}
+      if (stats?.isSymbolicLink()) {
+        await rm(symlinkPath);
+      }
+    } catch {
+      // Ignore errors - symlink may not exist
+    }
+  }
 }
 
 /**
  * Get the source path for a registry skill within .pspm/skills/.
  *
- * @param username - Skill author username
- * @param skillName - Skill name
+ * @param ownerOrNamespace - Skill author username, or namespace prefix
+ * @param skillNameOrOwner - Skill name (2-arg form) or owner (3-arg form)
+ * @param skillName - Skill name (3-arg form only)
  * @returns Relative path from project root (e.g., ".pspm/skills/alice/my-skill")
  */
 export function getRegistrySkillPath(
-	username: string,
-	skillName: string,
+  ownerOrNamespace: string,
+  skillNameOrOwner: string,
+  skillName?: string,
 ): string {
-	return `.pspm/skills/${username}/${skillName}`;
+  if (skillName !== undefined) {
+    // 3-arg form: namespace, owner, skillName
+    // e.g., ("user", "alice", "my-skill") -> ".pspm/skills/alice/my-skill"
+    // e.g., ("org", "anyt", "code-review") -> ".pspm/skills/_org/anyt/code-review"
+    // e.g., ("github", "microsoft", "skills/azure-ai") -> ".pspm/skills/_github-registry/microsoft/skills/azure-ai"
+    const namespace = ownerOrNamespace;
+    const owner = skillNameOrOwner;
+    if (namespace === "org") {
+      return `.pspm/skills/_org/${owner}/${skillName}`;
+    }
+    if (namespace === "github") {
+      // skillName contains "repo/subname" for @github namespace
+      return `.pspm/skills/_github-registry/${owner}/${skillName}`;
+    }
+    // "user" namespace uses flat structure for backward compat
+    return `.pspm/skills/${owner}/${skillName}`;
+  }
+  // 2-arg legacy form: username, skillName
+  return `.pspm/skills/${ownerOrNamespace}/${skillNameOrOwner}`;
 }
 
 /**
@@ -182,14 +202,14 @@ export function getRegistrySkillPath(
  * @returns Relative path from project root (e.g., ".pspm/skills/_github/owner/repo/path")
  */
 export function getGitHubSkillPath(
-	owner: string,
-	repo: string,
-	path?: string,
+  owner: string,
+  repo: string,
+  path?: string,
 ): string {
-	if (path) {
-		return `.pspm/skills/_github/${owner}/${repo}/${path}`;
-	}
-	return `.pspm/skills/_github/${owner}/${repo}`;
+  if (path) {
+    return `.pspm/skills/_github/${owner}/${repo}/${path}`;
+  }
+  return `.pspm/skills/_github/${owner}/${repo}`;
 }
 
 /**
@@ -199,7 +219,7 @@ export function getGitHubSkillPath(
  * @returns Relative path from project root (e.g., ".pspm/skills/_local/my-skill")
  */
 export function getLocalSkillPath(skillName: string): string {
-	return `.pspm/skills/_local/${skillName}`;
+  return `.pspm/skills/_local/${skillName}`;
 }
 
 /**
@@ -210,10 +230,10 @@ export function getLocalSkillPath(skillName: string): string {
  * @returns Relative path from project root (e.g., ".pspm/skills/_wellknown/acme.com/my-skill")
  */
 export function getWellKnownSkillPath(
-	hostname: string,
-	skillName: string,
+  hostname: string,
+  skillName: string,
 ): string {
-	return `.pspm/skills/_wellknown/${hostname}/${skillName}`;
+  return `.pspm/skills/_wellknown/${hostname}/${skillName}`;
 }
 
 /**
@@ -226,28 +246,28 @@ export function getWellKnownSkillPath(
  * @returns Array of agent names that have valid symlinks
  */
 export async function getLinkedAgents(
-	skillName: string,
-	agents: string[],
-	projectRoot: string,
-	agentConfigs?: Record<string, AgentConfig>,
+  skillName: string,
+  agents: string[],
+  projectRoot: string,
+  agentConfigs?: Record<string, AgentConfig>,
 ): Promise<string[]> {
-	const linkedAgents: string[] = [];
+  const linkedAgents: string[] = [];
 
-	for (const agentName of agents) {
-		const config = resolveAgentConfig(agentName, agentConfigs);
-		if (!config) continue;
+  for (const agentName of agents) {
+    const config = resolveAgentConfig(agentName, agentConfigs);
+    if (!config) continue;
 
-		const symlinkPath = join(projectRoot, config.skillsDir, skillName);
+    const symlinkPath = join(projectRoot, config.skillsDir, skillName);
 
-		try {
-			const stats = await lstat(symlinkPath);
-			if (stats.isSymbolicLink()) {
-				linkedAgents.push(agentName);
-			}
-		} catch {
-			// Symlink doesn't exist
-		}
-	}
+    try {
+      const stats = await lstat(symlinkPath);
+      if (stats.isSymbolicLink()) {
+        linkedAgents.push(agentName);
+      }
+    } catch {
+      // Symlink doesn't exist
+    }
+  }
 
-	return linkedAgents;
+  return linkedAgents;
 }

@@ -1,38 +1,38 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
-	getLegacyLockfilePath,
-	getLockfilePath,
-	getRegistryUrl,
+  getLegacyLockfilePath,
+  getLockfilePath,
+  getRegistryUrl,
 } from "./config";
 import {
-	type GitHubLockfileEntry,
-	type LocalLockfileEntry,
-	PSPM_LOCKFILE_SCHEMA_URL,
-	type PspmLockfile,
-	type PspmLockfileEntry,
-	type WellKnownLockfileEntry,
+  type GitHubLockfileEntry,
+  type LocalLockfileEntry,
+  PSPM_LOCKFILE_SCHEMA_URL,
+  type PspmLockfile,
+  type PspmLockfileEntry,
+  type WellKnownLockfileEntry,
 } from "./lib/index";
 
 // Re-export types for backward compatibility
 export type {
-	GitHubLockfileEntry,
-	LocalLockfileEntry,
-	PspmLockfile,
-	PspmLockfileEntry,
-	WellKnownLockfileEntry,
+  GitHubLockfileEntry,
+  LocalLockfileEntry,
+  PspmLockfile,
+  PspmLockfileEntry,
+  WellKnownLockfileEntry,
 };
 
 /**
  * Check if legacy lockfile exists (skill-lock.json)
  */
 async function hasLegacyLockfile(): Promise<boolean> {
-	try {
-		await stat(getLegacyLockfilePath());
-		return true;
-	} catch {
-		return false;
-	}
+  try {
+    await stat(getLegacyLockfilePath());
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -40,239 +40,239 @@ async function hasLegacyLockfile(): Promise<boolean> {
  * Returns true if migration was performed
  */
 export async function migrateLockfileIfNeeded(): Promise<boolean> {
-	const legacyPath = getLegacyLockfilePath();
-	const newPath = getLockfilePath();
+  const legacyPath = getLegacyLockfilePath();
+  const newPath = getLockfilePath();
 
-	// Check if legacy exists and new doesn't
-	try {
-		await stat(legacyPath);
-	} catch {
-		// No legacy file, nothing to migrate
-		return false;
-	}
+  // Check if legacy exists and new doesn't
+  try {
+    await stat(legacyPath);
+  } catch {
+    // No legacy file, nothing to migrate
+    return false;
+  }
 
-	try {
-		await stat(newPath);
-		// New file already exists, don't overwrite
-		return false;
-	} catch {
-		// New file doesn't exist, migrate
-	}
+  try {
+    await stat(newPath);
+    // New file already exists, don't overwrite
+    return false;
+  } catch {
+    // New file doesn't exist, migrate
+  }
 
-	try {
-		const content = await readFile(legacyPath, "utf-8");
-		const oldLockfile = JSON.parse(content) as PspmLockfile;
+  try {
+    const content = await readFile(legacyPath, "utf-8");
+    const oldLockfile = JSON.parse(content) as PspmLockfile;
 
-		// Convert v1 to v2 format
-		const newLockfile: PspmLockfile = {
-			lockfileVersion: 2,
-			registryUrl: oldLockfile.registryUrl,
-			packages: oldLockfile.skills ?? {},
-		};
+    // Convert v1 to v2 format
+    const newLockfile: PspmLockfile = {
+      lockfileVersion: 2,
+      registryUrl: oldLockfile.registryUrl,
+      packages: oldLockfile.skills ?? {},
+    };
 
-		await writeFile(newPath, `${JSON.stringify(newLockfile, null, 2)}\n`);
-		console.log("Migrated lockfile: skill-lock.json → pspm-lock.json");
+    await writeFile(newPath, `${JSON.stringify(newLockfile, null, 2)}\n`);
+    console.log("Migrated lockfile: skill-lock.json → pspm-lock.json");
 
-		// Keep the old file for safety (user can delete it)
-		return true;
-	} catch {
-		return false;
-	}
+    // Keep the old file for safety (user can delete it)
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Read the lockfile, automatically checking for legacy format
  */
 export async function readLockfile(): Promise<PspmLockfile | null> {
-	const lockfilePath = getLockfilePath();
+  const lockfilePath = getLockfilePath();
 
-	try {
-		const content = await readFile(lockfilePath, "utf-8");
-		const lockfile = JSON.parse(content) as PspmLockfile;
+  try {
+    const content = await readFile(lockfilePath, "utf-8");
+    const lockfile = JSON.parse(content) as PspmLockfile;
 
-		// Normalize v1 -> v2 in memory (skills -> packages)
-		if (
-			lockfile.lockfileVersion === 1 &&
-			lockfile.skills &&
-			!lockfile.packages
-		) {
-			return {
-				...lockfile,
-				lockfileVersion: 2,
-				packages: lockfile.skills,
-			};
-		}
+    // Normalize v1 -> v2 in memory (skills -> packages)
+    if (
+      lockfile.lockfileVersion === 1 &&
+      lockfile.skills &&
+      !lockfile.packages
+    ) {
+      return {
+        ...lockfile,
+        lockfileVersion: 2,
+        packages: lockfile.skills,
+      };
+    }
 
-		return lockfile;
-	} catch {
-		// Try legacy path
-		if (await hasLegacyLockfile()) {
-			try {
-				const content = await readFile(getLegacyLockfilePath(), "utf-8");
-				const legacyLockfile = JSON.parse(content) as PspmLockfile;
-				// Return normalized v2 format
-				return {
-					lockfileVersion: 2,
-					registryUrl: legacyLockfile.registryUrl,
-					packages: legacyLockfile.skills ?? {},
-				};
-			} catch {
-				return null;
-			}
-		}
-		return null;
-	}
+    return lockfile;
+  } catch {
+    // Try legacy path
+    if (await hasLegacyLockfile()) {
+      try {
+        const content = await readFile(getLegacyLockfilePath(), "utf-8");
+        const legacyLockfile = JSON.parse(content) as PspmLockfile;
+        // Return normalized v2 format
+        return {
+          lockfileVersion: 2,
+          registryUrl: legacyLockfile.registryUrl,
+          packages: legacyLockfile.skills ?? {},
+        };
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
 }
 
 /**
  * Write the lockfile (v4 format if any package has dependencies, otherwise v3)
  */
 export async function writeLockfile(lockfile: PspmLockfile): Promise<void> {
-	const lockfilePath = getLockfilePath();
-	await mkdir(dirname(lockfilePath), { recursive: true });
+  const lockfilePath = getLockfilePath();
+  await mkdir(dirname(lockfilePath), { recursive: true });
 
-	const packages = lockfile.packages ?? lockfile.skills ?? {};
+  const packages = lockfile.packages ?? lockfile.skills ?? {};
 
-	// Check if any package has dependencies to determine version
-	const hasDependencies = Object.values(packages).some(
-		(pkg) => pkg.dependencies && Object.keys(pkg.dependencies).length > 0,
-	);
-	const version = hasDependencies ? 4 : 3;
+  // Check if any package has dependencies to determine version
+  const hasDependencies = Object.values(packages).some(
+    (pkg) => pkg.dependencies && Object.keys(pkg.dependencies).length > 0,
+  );
+  const version = hasDependencies ? 4 : 3;
 
-	const normalized: PspmLockfile = {
-		$schema: PSPM_LOCKFILE_SCHEMA_URL,
-		lockfileVersion: version,
-		registryUrl: lockfile.registryUrl,
-		packages,
-	};
+  const normalized: PspmLockfile = {
+    $schema: PSPM_LOCKFILE_SCHEMA_URL,
+    lockfileVersion: version,
+    registryUrl: lockfile.registryUrl,
+    packages,
+  };
 
-	// Only include githubPackages if there are entries
-	if (
-		lockfile.githubPackages &&
-		Object.keys(lockfile.githubPackages).length > 0
-	) {
-		normalized.githubPackages = lockfile.githubPackages;
-	}
+  // Only include githubPackages if there are entries
+  if (
+    lockfile.githubPackages &&
+    Object.keys(lockfile.githubPackages).length > 0
+  ) {
+    normalized.githubPackages = lockfile.githubPackages;
+  }
 
-	// Only include localPackages if there are entries
-	if (
-		lockfile.localPackages &&
-		Object.keys(lockfile.localPackages).length > 0
-	) {
-		normalized.localPackages = lockfile.localPackages;
-	}
+  // Only include localPackages if there are entries
+  if (
+    lockfile.localPackages &&
+    Object.keys(lockfile.localPackages).length > 0
+  ) {
+    normalized.localPackages = lockfile.localPackages;
+  }
 
-	// Only include wellKnownPackages if there are entries
-	if (
-		lockfile.wellKnownPackages &&
-		Object.keys(lockfile.wellKnownPackages).length > 0
-	) {
-		normalized.wellKnownPackages = lockfile.wellKnownPackages;
-	}
+  // Only include wellKnownPackages if there are entries
+  if (
+    lockfile.wellKnownPackages &&
+    Object.keys(lockfile.wellKnownPackages).length > 0
+  ) {
+    normalized.wellKnownPackages = lockfile.wellKnownPackages;
+  }
 
-	await writeFile(lockfilePath, `${JSON.stringify(normalized, null, 2)}\n`);
+  await writeFile(lockfilePath, `${JSON.stringify(normalized, null, 2)}\n`);
 }
 
 /**
  * Create a new empty lockfile (v4 format)
  */
 export async function createEmptyLockfile(): Promise<PspmLockfile> {
-	const registryUrl = await getRegistryUrl();
-	return {
-		lockfileVersion: 4,
-		registryUrl,
-		packages: {},
-	};
+  const registryUrl = await getRegistryUrl();
+  return {
+    lockfileVersion: 4,
+    registryUrl,
+    packages: {},
+  };
 }
 
 /**
  * Get packages from lockfile (handles both v1 and v2)
  */
 function getPackages(
-	lockfile: PspmLockfile,
+  lockfile: PspmLockfile,
 ): Record<string, PspmLockfileEntry> {
-	return lockfile.packages ?? lockfile.skills ?? {};
+  return lockfile.packages ?? lockfile.skills ?? {};
 }
 
 /**
  * Add a skill to the lockfile
  */
 export async function addToLockfile(
-	fullName: string,
-	entry: PspmLockfileEntry,
+  fullName: string,
+  entry: PspmLockfileEntry,
 ): Promise<void> {
-	let lockfile = await readLockfile();
-	if (!lockfile) {
-		lockfile = await createEmptyLockfile();
-	}
+  let lockfile = await readLockfile();
+  if (!lockfile) {
+    lockfile = await createEmptyLockfile();
+  }
 
-	const packages = getPackages(lockfile);
-	packages[fullName] = entry;
-	lockfile.packages = packages;
+  const packages = getPackages(lockfile);
+  packages[fullName] = entry;
+  lockfile.packages = packages;
 
-	await writeLockfile(lockfile);
+  await writeLockfile(lockfile);
 }
 
 /**
  * Add a skill to the lockfile with dependencies (v4 format)
  */
 export async function addToLockfileWithDeps(
-	fullName: string,
-	entry: PspmLockfileEntry,
-	dependencies?: Record<string, string>,
+  fullName: string,
+  entry: PspmLockfileEntry,
+  dependencies?: Record<string, string>,
 ): Promise<void> {
-	let lockfile = await readLockfile();
-	if (!lockfile) {
-		lockfile = await createEmptyLockfile();
-	}
+  let lockfile = await readLockfile();
+  if (!lockfile) {
+    lockfile = await createEmptyLockfile();
+  }
 
-	const packages = getPackages(lockfile);
-	const entryWithDeps = { ...entry };
-	if (dependencies && Object.keys(dependencies).length > 0) {
-		entryWithDeps.dependencies = dependencies;
-	}
-	packages[fullName] = entryWithDeps;
-	lockfile.packages = packages;
+  const packages = getPackages(lockfile);
+  const entryWithDeps = { ...entry };
+  if (dependencies && Object.keys(dependencies).length > 0) {
+    entryWithDeps.dependencies = dependencies;
+  }
+  packages[fullName] = entryWithDeps;
+  lockfile.packages = packages;
 
-	await writeLockfile(lockfile);
+  await writeLockfile(lockfile);
 }
 
 /**
  * Remove a skill from the lockfile
  */
 export async function removeFromLockfile(fullName: string): Promise<boolean> {
-	const lockfile = await readLockfile();
-	if (!lockfile) {
-		return false;
-	}
+  const lockfile = await readLockfile();
+  if (!lockfile) {
+    return false;
+  }
 
-	const packages = getPackages(lockfile);
-	if (!packages[fullName]) {
-		return false;
-	}
+  const packages = getPackages(lockfile);
+  if (!packages[fullName]) {
+    return false;
+  }
 
-	delete packages[fullName];
-	lockfile.packages = packages;
-	await writeLockfile(lockfile);
-	return true;
+  delete packages[fullName];
+  lockfile.packages = packages;
+  await writeLockfile(lockfile);
+  return true;
 }
 
 /**
  * List all skills in the lockfile
  */
 export async function listLockfileSkills(): Promise<
-	Array<{ name: string; entry: PspmLockfileEntry }>
+  Array<{ name: string; entry: PspmLockfileEntry }>
 > {
-	const lockfile = await readLockfile();
-	if (!lockfile) {
-		return [];
-	}
+  const lockfile = await readLockfile();
+  if (!lockfile) {
+    return [];
+  }
 
-	const packages = getPackages(lockfile);
-	return Object.entries(packages).map(([name, entry]) => ({
-		name,
-		entry: entry as PspmLockfileEntry,
-	}));
+  const packages = getPackages(lockfile);
+  return Object.entries(packages).map(([name, entry]) => ({
+    name,
+    entry: entry as PspmLockfileEntry,
+  }));
 }
 
 // =============================================================================
@@ -283,53 +283,53 @@ export async function listLockfileSkills(): Promise<
  * Add a GitHub package to the lockfile
  */
 export async function addGitHubToLockfile(
-	specifier: string,
-	entry: GitHubLockfileEntry,
+  specifier: string,
+  entry: GitHubLockfileEntry,
 ): Promise<void> {
-	let lockfile = await readLockfile();
-	if (!lockfile) {
-		lockfile = await createEmptyLockfile();
-	}
+  let lockfile = await readLockfile();
+  if (!lockfile) {
+    lockfile = await createEmptyLockfile();
+  }
 
-	if (!lockfile.githubPackages) {
-		lockfile.githubPackages = {};
-	}
+  if (!lockfile.githubPackages) {
+    lockfile.githubPackages = {};
+  }
 
-	lockfile.githubPackages[specifier] = entry;
-	await writeLockfile(lockfile);
+  lockfile.githubPackages[specifier] = entry;
+  await writeLockfile(lockfile);
 }
 
 /**
  * Remove a GitHub package from the lockfile
  */
 export async function removeGitHubFromLockfile(
-	specifier: string,
+  specifier: string,
 ): Promise<boolean> {
-	const lockfile = await readLockfile();
-	if (!lockfile?.githubPackages?.[specifier]) {
-		return false;
-	}
+  const lockfile = await readLockfile();
+  if (!lockfile?.githubPackages?.[specifier]) {
+    return false;
+  }
 
-	delete lockfile.githubPackages[specifier];
-	await writeLockfile(lockfile);
-	return true;
+  delete lockfile.githubPackages[specifier];
+  await writeLockfile(lockfile);
+  return true;
 }
 
 /**
  * List all GitHub packages in the lockfile
  */
 export async function listLockfileGitHubPackages(): Promise<
-	Array<{ specifier: string; entry: GitHubLockfileEntry }>
+  Array<{ specifier: string; entry: GitHubLockfileEntry }>
 > {
-	const lockfile = await readLockfile();
-	if (!lockfile?.githubPackages) {
-		return [];
-	}
+  const lockfile = await readLockfile();
+  if (!lockfile?.githubPackages) {
+    return [];
+  }
 
-	return Object.entries(lockfile.githubPackages).map(([specifier, entry]) => ({
-		specifier,
-		entry: entry as GitHubLockfileEntry,
-	}));
+  return Object.entries(lockfile.githubPackages).map(([specifier, entry]) => ({
+    specifier,
+    entry: entry as GitHubLockfileEntry,
+  }));
 }
 
 // =============================================================================
@@ -340,53 +340,20 @@ export async function listLockfileGitHubPackages(): Promise<
  * Add a local package to the lockfile
  */
 export async function addLocalToLockfile(
-	specifier: string,
-	entry: LocalLockfileEntry,
+  specifier: string,
+  entry: LocalLockfileEntry,
 ): Promise<void> {
-	let lockfile = await readLockfile();
-	if (!lockfile) {
-		lockfile = await createEmptyLockfile();
-	}
+  let lockfile = await readLockfile();
+  if (!lockfile) {
+    lockfile = await createEmptyLockfile();
+  }
 
-	if (!lockfile.localPackages) {
-		lockfile.localPackages = {};
-	}
+  if (!lockfile.localPackages) {
+    lockfile.localPackages = {};
+  }
 
-	lockfile.localPackages[specifier] = entry;
-	await writeLockfile(lockfile);
-}
-
-/**
- * Remove a local package from the lockfile
- */
-export async function removeLocalFromLockfile(
-	specifier: string,
-): Promise<boolean> {
-	const lockfile = await readLockfile();
-	if (!lockfile?.localPackages?.[specifier]) {
-		return false;
-	}
-
-	delete lockfile.localPackages[specifier];
-	await writeLockfile(lockfile);
-	return true;
-}
-
-/**
- * List all local packages in the lockfile
- */
-export async function listLockfileLocalPackages(): Promise<
-	Array<{ specifier: string; entry: LocalLockfileEntry }>
-> {
-	const lockfile = await readLockfile();
-	if (!lockfile?.localPackages) {
-		return [];
-	}
-
-	return Object.entries(lockfile.localPackages).map(([specifier, entry]) => ({
-		specifier,
-		entry: entry as LocalLockfileEntry,
-	}));
+  lockfile.localPackages[specifier] = entry;
+  await writeLockfile(lockfile);
 }
 
 // =============================================================================
@@ -397,53 +364,37 @@ export async function listLockfileLocalPackages(): Promise<
  * Add a well-known package to the lockfile
  */
 export async function addWellKnownToLockfile(
-	specifier: string,
-	entry: WellKnownLockfileEntry,
+  specifier: string,
+  entry: WellKnownLockfileEntry,
 ): Promise<void> {
-	let lockfile = await readLockfile();
-	if (!lockfile) {
-		lockfile = await createEmptyLockfile();
-	}
+  let lockfile = await readLockfile();
+  if (!lockfile) {
+    lockfile = await createEmptyLockfile();
+  }
 
-	if (!lockfile.wellKnownPackages) {
-		lockfile.wellKnownPackages = {};
-	}
+  if (!lockfile.wellKnownPackages) {
+    lockfile.wellKnownPackages = {};
+  }
 
-	lockfile.wellKnownPackages[specifier] = entry;
-	await writeLockfile(lockfile);
-}
-
-/**
- * Remove a well-known package from the lockfile
- */
-export async function removeWellKnownFromLockfile(
-	specifier: string,
-): Promise<boolean> {
-	const lockfile = await readLockfile();
-	if (!lockfile?.wellKnownPackages?.[specifier]) {
-		return false;
-	}
-
-	delete lockfile.wellKnownPackages[specifier];
-	await writeLockfile(lockfile);
-	return true;
+  lockfile.wellKnownPackages[specifier] = entry;
+  await writeLockfile(lockfile);
 }
 
 /**
  * List all well-known packages in the lockfile
  */
 export async function listLockfileWellKnownPackages(): Promise<
-	Array<{ specifier: string; entry: WellKnownLockfileEntry }>
+  Array<{ specifier: string; entry: WellKnownLockfileEntry }>
 > {
-	const lockfile = await readLockfile();
-	if (!lockfile?.wellKnownPackages) {
-		return [];
-	}
+  const lockfile = await readLockfile();
+  if (!lockfile?.wellKnownPackages) {
+    return [];
+  }
 
-	return Object.entries(lockfile.wellKnownPackages).map(
-		([specifier, entry]) => ({
-			specifier,
-			entry: entry as WellKnownLockfileEntry,
-		}),
-	);
+  return Object.entries(lockfile.wellKnownPackages).map(
+    ([specifier, entry]) => ({
+      specifier,
+      entry: entry as WellKnownLockfileEntry,
+    }),
+  );
 }

@@ -6,7 +6,7 @@ import { whoamiRequest } from "@/api-client";
 import { getRegistryUrl, setCredentials } from "@/config";
 
 export interface LoginOptions {
-	apiKey?: string;
+  apiKey?: string;
 }
 
 const DEFAULT_WEB_APP_URL = "https://pspm.dev";
@@ -25,25 +25,25 @@ const DEFAULT_WEB_APP_URL = "https://pspm.dev";
  * - https://pspm.dev (main domain) -> web app is https://pspm.dev
  */
 function getWebAppUrl(registryUrl: string): string {
-	// Environment variable takes priority (for local dev)
-	if (process.env.PSPM_WEB_URL) {
-		return process.env.PSPM_WEB_URL.replace(/\/$/, ""); // Remove trailing slash
-	}
+  // Environment variable takes priority (for local dev)
+  if (process.env.PSPM_WEB_URL) {
+    return process.env.PSPM_WEB_URL.replace(/\/$/, ""); // Remove trailing slash
+  }
 
-	try {
-		const url = new URL(registryUrl);
-		let host = url.host;
+  try {
+    const url = new URL(registryUrl);
+    let host = url.host;
 
-		// Strip "registry." subdomain prefix if present
-		// e.g., registry.pspm.dev -> pspm.dev
-		if (host.startsWith("registry.")) {
-			host = host.slice("registry.".length);
-		}
+    // Strip "registry." subdomain prefix if present
+    // e.g., registry.pspm.dev -> pspm.dev
+    if (host.startsWith("registry.")) {
+      host = host.slice("registry.".length);
+    }
 
-		return `${url.protocol}//${host}`;
-	} catch {
-		return DEFAULT_WEB_APP_URL;
-	}
+    return `${url.protocol}//${host}`;
+  } catch {
+    return DEFAULT_WEB_APP_URL;
+  }
 }
 
 /**
@@ -55,76 +55,76 @@ function getWebAppUrl(registryUrl: string): string {
  * - https://pspm.dev -> server is https://pspm.dev
  */
 function getServerUrl(registryUrl: string): string {
-	try {
-		const url = new URL(registryUrl);
-		let host = url.host;
+  try {
+    const url = new URL(registryUrl);
+    let host = url.host;
 
-		// Strip "registry." subdomain prefix if present
-		if (host.startsWith("registry.")) {
-			host = host.slice("registry.".length);
-		}
+    // Strip "registry." subdomain prefix if present
+    if (host.startsWith("registry.")) {
+      host = host.slice("registry.".length);
+    }
 
-		return `${url.protocol}//${host}`;
-	} catch {
-		return DEFAULT_WEB_APP_URL;
-	}
+    return `${url.protocol}//${host}`;
+  } catch {
+    return DEFAULT_WEB_APP_URL;
+  }
 }
 
 /**
  * Exchange a CLI token for an API key using fetch
  */
 async function exchangeCliToken(
-	registryUrl: string,
-	token: string,
+  registryUrl: string,
+  token: string,
 ): Promise<{ apiKey: string; username: string }> {
-	const serverUrl = getServerUrl(registryUrl);
-	// Use direct REST endpoint (not oRPC) for CLI compatibility
-	const rpcUrl = `${serverUrl}/api/api-keys/cli-token-exchange`;
+  const serverUrl = getServerUrl(registryUrl);
+  // Use direct REST endpoint (not oRPC) for CLI compatibility
+  const rpcUrl = `${serverUrl}/api/api-keys/cli-token-exchange`;
 
-	const response = await fetch(rpcUrl, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({ token }),
-	});
+  const response = await fetch(rpcUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token }),
+  });
 
-	if (!response.ok) {
-		const errorText = await response.text();
-		throw new Error(`Failed to exchange token: ${errorText}`);
-	}
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to exchange token: ${errorText}`);
+  }
 
-	return response.json() as Promise<{ apiKey: string; username: string }>;
+  return response.json() as Promise<{ apiKey: string; username: string }>;
 }
 
 /**
  * Start a local HTTP server to receive the OAuth callback
  */
 function startCallbackServer(expectedState: string): Promise<{
-	port: number;
-	tokenPromise: Promise<string>;
-	cleanup: () => void;
+  port: number;
+  tokenPromise: Promise<string>;
+  cleanup: () => void;
 }> {
-	return new Promise((resolveServer, rejectServer) => {
-		let resolveToken: (token: string) => void;
-		let rejectToken: (error: Error) => void;
-		let timeoutId: NodeJS.Timeout;
+  return new Promise((resolveServer, rejectServer) => {
+    let resolveToken: (token: string) => void;
+    let rejectToken: (error: Error) => void;
+    let timeoutId: NodeJS.Timeout;
 
-		const tokenPromise = new Promise<string>((resolve, reject) => {
-			resolveToken = resolve;
-			rejectToken = reject;
-		});
+    const tokenPromise = new Promise<string>((resolve, reject) => {
+      resolveToken = resolve;
+      rejectToken = reject;
+    });
 
-		const server = http.createServer((req, res) => {
-			const url = new URL(req.url || "/", "http://localhost");
+    const server = http.createServer((req, res) => {
+      const url = new URL(req.url || "/", "http://localhost");
 
-			if (url.pathname === "/callback") {
-				const token = url.searchParams.get("token");
-				const state = url.searchParams.get("state");
+      if (url.pathname === "/callback") {
+        const token = url.searchParams.get("token");
+        const state = url.searchParams.get("state");
 
-				if (state !== expectedState) {
-					res.writeHead(400, { "Content-Type": "text/html" });
-					res.end(`
+        if (state !== expectedState) {
+          res.writeHead(400, { "Content-Type": "text/html" });
+          res.end(`
 						<html>
 							<body style="font-family: system-ui; text-align: center; padding: 40px;">
 								<h1 style="color: #dc2626;">Security Error</h1>
@@ -133,13 +133,13 @@ function startCallbackServer(expectedState: string): Promise<{
 							</body>
 						</html>
 					`);
-					rejectToken(new Error("State mismatch - possible CSRF attack"));
-					return;
-				}
+          rejectToken(new Error("State mismatch - possible CSRF attack"));
+          return;
+        }
 
-				if (!token) {
-					res.writeHead(400, { "Content-Type": "text/html" });
-					res.end(`
+        if (!token) {
+          res.writeHead(400, { "Content-Type": "text/html" });
+          res.end(`
 						<html>
 							<body style="font-family: system-ui; text-align: center; padding: 40px;">
 								<h1 style="color: #dc2626;">Error</h1>
@@ -148,12 +148,12 @@ function startCallbackServer(expectedState: string): Promise<{
 							</body>
 						</html>
 					`);
-					rejectToken(new Error("No token received"));
-					return;
-				}
+          rejectToken(new Error("No token received"));
+          return;
+        }
 
-				res.writeHead(200, { "Content-Type": "text/html" });
-				res.end(`
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end(`
 					<html>
 						<head>
 							<script>
@@ -171,125 +171,125 @@ function startCallbackServer(expectedState: string): Promise<{
 					</html>
 				`);
 
-				resolveToken(token);
-			} else {
-				res.writeHead(404, { "Content-Type": "text/plain" });
-				res.end("Not found");
-			}
-		});
+        resolveToken(token);
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not found");
+      }
+    });
 
-		// Cleanup function to close server and clear timeout
-		const cleanup = () => {
-			clearTimeout(timeoutId);
-			server.close();
-		};
+    // Cleanup function to close server and clear timeout
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      server.close();
+    };
 
-		// Use port 0 to let the OS assign an available port
-		server.listen(0, "127.0.0.1", () => {
-			const address = server.address();
-			if (typeof address === "object" && address !== null) {
-				resolveServer({ port: address.port, tokenPromise, cleanup });
-			} else {
-				rejectServer(new Error("Failed to get server address"));
-			}
-		});
+    // Use port 0 to let the OS assign an available port
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (typeof address === "object" && address !== null) {
+        resolveServer({ port: address.port, tokenPromise, cleanup });
+      } else {
+        rejectServer(new Error("Failed to get server address"));
+      }
+    });
 
-		server.on("error", (err) => {
-			rejectServer(err);
-		});
+    server.on("error", (err) => {
+      rejectServer(err);
+    });
 
-		// Timeout after 5 minutes
-		timeoutId = setTimeout(
-			() => {
-				rejectToken(new Error("Login timed out - please try again"));
-				server.close();
-			},
-			5 * 60 * 1000,
-		);
-	});
+    // Timeout after 5 minutes
+    timeoutId = setTimeout(
+      () => {
+        rejectToken(new Error("Login timed out - please try again"));
+        server.close();
+      },
+      5 * 60 * 1000,
+    );
+  });
 }
 
 /**
  * Login using browser-based OAuth flow
  */
 async function browserLogin(): Promise<void> {
-	const registryUrl = await getRegistryUrl();
-	const webAppUrl = getWebAppUrl(registryUrl);
+  const registryUrl = await getRegistryUrl();
+  const webAppUrl = getWebAppUrl(registryUrl);
 
-	// Generate state for CSRF protection
-	const state = randomBytes(32).toString("base64url");
+  // Generate state for CSRF protection
+  const state = randomBytes(32).toString("base64url");
 
-	console.log("Starting browser-based login...");
+  console.log("Starting browser-based login...");
 
-	// Start local callback server
-	const { port, tokenPromise, cleanup } = await startCallbackServer(state);
+  // Start local callback server
+  const { port, tokenPromise, cleanup } = await startCallbackServer(state);
 
-	// Build the login URL
-	const loginUrl = `${webAppUrl}/cli/login?port=${port}&state=${encodeURIComponent(state)}`;
+  // Build the login URL
+  const loginUrl = `${webAppUrl}/cli/login?port=${port}&state=${encodeURIComponent(state)}`;
 
-	console.log("Opening browser to authenticate...");
-	console.log(`If the browser doesn't open, visit: ${loginUrl}`);
+  console.log("Opening browser to authenticate...");
+  console.log(`If the browser doesn't open, visit: ${loginUrl}`);
 
-	// Open the browser
-	try {
-		await open(loginUrl);
-	} catch {
-		console.log("Could not open browser automatically.");
-		console.log(`Please visit: ${loginUrl}`);
-	}
+  // Open the browser
+  try {
+    await open(loginUrl);
+  } catch {
+    console.log("Could not open browser automatically.");
+    console.log(`Please visit: ${loginUrl}`);
+  }
 
-	console.log("Waiting for authentication...");
+  console.log("Waiting for authentication...");
 
-	// Wait for the callback with the token
-	const token = await tokenPromise;
+  // Wait for the callback with the token
+  const token = await tokenPromise;
 
-	// Clean up server and timeout immediately after receiving token
-	cleanup();
+  // Clean up server and timeout immediately after receiving token
+  cleanup();
 
-	console.log("Received token, exchanging for API key...");
+  console.log("Received token, exchanging for API key...");
 
-	// Exchange the token for an API key
-	const { apiKey, username } = await exchangeCliToken(registryUrl, token);
+  // Exchange the token for an API key
+  const { apiKey, username } = await exchangeCliToken(registryUrl, token);
 
-	// Store credentials
-	await setCredentials(apiKey, username, registryUrl);
+  // Store credentials
+  await setCredentials(apiKey, username, registryUrl);
 
-	console.log(`Logged in as ${username}`);
-	console.log(`Registry: ${registryUrl}`);
+  console.log(`Logged in as ${username}`);
+  console.log(`Registry: ${registryUrl}`);
 }
 
 /**
  * Login using direct API key (fallback method)
  */
 async function directLogin(apiKey: string): Promise<void> {
-	console.log("Verifying API key...");
+  console.log("Verifying API key...");
 
-	const registryUrl = await getRegistryUrl();
+  const registryUrl = await getRegistryUrl();
 
-	const user = await whoamiRequest(registryUrl, apiKey);
-	if (!user) {
-		console.error("Error: Invalid API key or not authenticated");
-		process.exit(1);
-	}
+  const user = await whoamiRequest(registryUrl, apiKey);
+  if (!user) {
+    console.error("Error: Invalid API key or not authenticated");
+    process.exit(1);
+  }
 
-	// Store credentials
-	await setCredentials(apiKey, user.username, registryUrl);
-	console.log(`Logged in as ${user.username}`);
-	console.log(`Registry: ${registryUrl}`);
+  // Store credentials
+  await setCredentials(apiKey, user.username, registryUrl);
+  console.log(`Logged in as ${user.username}`);
+  console.log(`Registry: ${registryUrl}`);
 }
 
 export async function login(options: LoginOptions): Promise<void> {
-	try {
-		if (options.apiKey) {
-			// Direct login with API key
-			await directLogin(options.apiKey);
-		} else {
-			// Browser-based OAuth flow
-			await browserLogin();
-		}
-	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		console.error(`Error: ${message}`);
-		process.exit(1);
-	}
+  try {
+    if (options.apiKey) {
+      // Direct login with API key
+      await directLogin(options.apiKey);
+    } else {
+      // Browser-based OAuth flow
+      await browserLogin();
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error: ${message}`);
+    process.exit(1);
+  }
 }
