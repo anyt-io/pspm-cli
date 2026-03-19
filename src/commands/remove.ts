@@ -67,8 +67,12 @@ async function removeRegistry(
     process.exit(1);
   }
 
-  const { namespace, owner, name } = parsed;
-  const fullName = `@${namespace}/${owner}/${name}`;
+  const { namespace, owner, name, subname } = parsed;
+  // Build the full lockfile key — @github includes subname
+  const fullName =
+    namespace === "github" && subname
+      ? `@github/${owner}/${name}/${subname}`
+      : `@${namespace}/${owner}/${name}`;
 
   console.log(`Removing ${fullName}...`);
 
@@ -83,8 +87,9 @@ async function removeRegistry(
     process.exit(1);
   }
 
-  // Remove symlinks from all agents
-  await removeAgentSymlinks(name, {
+  // Remove symlinks from all agents — use subname for @github (the actual skill name)
+  const symlinkName = subname ?? name;
+  await removeAgentSymlinks(symlinkName, {
     agents,
     projectRoot: process.cwd(),
     agentConfigs,
@@ -92,10 +97,14 @@ async function removeRegistry(
 
   // Remove from disk
   const skillsDir = getSkillsDir();
-  const destDir =
-    namespace === "org"
-      ? join(skillsDir, "_org", owner, name)
-      : join(skillsDir, owner, name);
+  let destDir: string;
+  if (namespace === "github" && subname) {
+    destDir = join(skillsDir, "_github-registry", owner, name, subname);
+  } else if (namespace === "org") {
+    destDir = join(skillsDir, "_org", owner, name);
+  } else {
+    destDir = join(skillsDir, owner, name);
+  }
 
   try {
     await rm(destDir, { recursive: true, force: true });
@@ -168,11 +177,14 @@ async function removeByShortName(
   agents: string[],
   agentConfigs?: Record<string, { skillsDir: string }>,
 ): Promise<void> {
-  // First try to find in registry skills
+  // First try to find in registry skills (covers @user, @org, @github namespaces)
   const registrySkills = await listLockfileSkills();
   const foundRegistry = registrySkills.find((s) => {
     const parsed = parseRegistrySpecifier(s.name);
-    return parsed && parsed.name === shortName;
+    if (!parsed) return false;
+    // For @github, the effective skill name is subname; for others it's name
+    const effectiveName = parsed.subname ?? parsed.name;
+    return effectiveName === shortName;
   });
 
   if (foundRegistry) {

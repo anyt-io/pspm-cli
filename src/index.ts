@@ -18,10 +18,22 @@ import {
   login,
   logout,
   migrate,
+  notebookDelete,
+  notebookDownload,
+  notebookList,
+  notebookUpload,
   outdated,
   publish,
   remove,
   search,
+  skillListAddSkill,
+  skillListCreate,
+  skillListDelete,
+  skillListInstall,
+  skillListList,
+  skillListRemoveSkill,
+  skillListShow,
+  skillListUpdate,
   unpublish,
   update,
   upgrade,
@@ -196,6 +208,10 @@ program
     "--agent <agents>",
     'Comma-separated agents for symlinks (default: all agents, use "none" to skip)',
   )
+  .option(
+    "--list <specifier>",
+    "Install all skills from a skill list (e.g. @user/username/list-name)",
+  )
   .option("-g, --global", "Install to user home directory instead of project")
   .option("-y, --yes", "Skip agent selection prompt and use defaults")
   .action(async (specifiers, options) => {
@@ -203,6 +219,7 @@ program
       frozenLockfile: options.frozenLockfile,
       dir: options.dir,
       agent: options.agent,
+      list: options.list,
       yes: options.yes,
       global: options.global,
     });
@@ -293,20 +310,26 @@ program
   .description("Publish current directory as a skill")
   .option("--bump <level>", "Bump version (major, minor, patch)")
   .option("--tag <tag>", "Tag for the release")
+  .option("--org <orgname>", "Publish under an organization namespace")
   .requiredOption(
     "--access <level>",
-    "Set package visibility (public or private)",
+    "Set package visibility (public, private, or team)",
   )
   .action(async (options) => {
     const access = options.access as string;
-    if (access !== "public" && access !== "private") {
-      console.error('Error: --access must be "public" or "private"');
+    if (access !== "public" && access !== "private" && access !== "team") {
+      console.error('Error: --access must be "public", "private", or "team"');
+      process.exit(1);
+    }
+    if (access === "team" && !options.org) {
+      console.error("Error: --access team requires --org <orgname>");
       process.exit(1);
     }
     await publish({
       bump: options.bump as "major" | "minor" | "patch" | undefined,
       tag: options.tag,
       access,
+      org: options.org,
     });
   });
 
@@ -340,6 +363,153 @@ program
   .option("--undo", "Remove deprecation status")
   .action(async (specifier, message, options) => {
     await deprecate(specifier, message, { undo: options.undo });
+  });
+
+// =============================================================================
+// Skill List commands
+// =============================================================================
+
+const skillListCmd = program
+  .command("skill-list")
+  .description("Manage skill lists (collections of skills)");
+
+skillListCmd
+  .command("list")
+  .description("List your skill lists")
+  .option("--org <orgname>", "List organization skill lists")
+  .option("--json", "Output as JSON")
+  .action(async (options) => {
+    await skillListList({ org: options.org, json: options.json });
+  });
+
+skillListCmd
+  .command("create <name>")
+  .description("Create a new skill list")
+  .option("-d, --description <description>", "List description")
+  .option(
+    "--visibility <visibility>",
+    "Visibility: private or public",
+    "private",
+  )
+  .option("--org <orgname>", "Create under an organization")
+  .action(async (name, options) => {
+    await skillListCreate(name, {
+      description: options.description,
+      visibility: options.visibility,
+      org: options.org,
+    });
+  });
+
+skillListCmd
+  .command("show <specifier>")
+  .description("Show skill list details (e.g. @user/alice/my-tools)")
+  .option("--json", "Output as JSON")
+  .action(async (specifier, options) => {
+    await skillListShow(specifier, { json: options.json });
+  });
+
+skillListCmd
+  .command("delete <specifier>")
+  .description("Delete a skill list")
+  .action(async (specifier) => {
+    await skillListDelete(specifier);
+  });
+
+skillListCmd
+  .command("update <specifier>")
+  .description("Update skill list metadata")
+  .option("-d, --description <description>", "New description")
+  .option("--visibility <visibility>", "New visibility: private or public")
+  .action(async (specifier, options) => {
+    await skillListUpdate(specifier, {
+      description: options.description,
+      visibility: options.visibility,
+    });
+  });
+
+skillListCmd
+  .command("add-skill <specifier> <skills...>")
+  .description(
+    "Add skills to a list (e.g. pspm skill-list add-skill @user/me/my-list @user/alice/tool)",
+  )
+  .option("--note <note>", "Note for the added skill")
+  .action(async (specifier, skills, options) => {
+    await skillListAddSkill(specifier, skills, {
+      note: options.note,
+    });
+  });
+
+skillListCmd
+  .command("remove-skill <specifier> <skill>")
+  .description("Remove a skill from a list")
+  .action(async (specifier, skill) => {
+    await skillListRemoveSkill(specifier, skill);
+  });
+
+skillListCmd
+  .command("install <specifier>")
+  .description(
+    "Install all skills from a list (e.g. pspm skill-list install @user/alice/my-tools)",
+  )
+  .option(
+    "--agent <agents>",
+    'Comma-separated agents for symlinks (default: all agents, use "none" to skip)',
+  )
+  .option("--dir <path>", "Install skills to a specific directory")
+  .option("-g, --global", "Install to user home directory instead of project")
+  .option("-y, --yes", "Skip agent selection prompt and use defaults")
+  .action(async (specifier, options) => {
+    await skillListInstall(specifier, {
+      agent: options.agent,
+      yes: options.yes,
+      global: options.global,
+      dir: options.dir,
+    });
+  });
+
+// =============================================================================
+// Notebook commands
+// =============================================================================
+
+const notebookCmd = program
+  .command("notebook")
+  .description("Manage AnyT notebooks");
+
+notebookCmd
+  .command("upload <file>")
+  .description("Upload a .anyt notebook")
+  .option("--org <orgname>", "Upload to an organization")
+  .option(
+    "--visibility <visibility>",
+    "Visibility: private, team, or public",
+    "private",
+  )
+  .option("--description <description>", "Notebook description")
+  .action(async (file, options) => {
+    await notebookUpload(file, options);
+  });
+
+notebookCmd
+  .command("list")
+  .description("List notebooks")
+  .option("--org <orgname>", "List organization notebooks")
+  .action(async (options) => {
+    await notebookList(options);
+  });
+
+notebookCmd
+  .command("download <id>")
+  .description("Download a notebook by ID")
+  .option("-o, --output <path>", "Output file path")
+  .action(async (id, options) => {
+    await notebookDownload(id, options.output);
+  });
+
+notebookCmd
+  .command("delete <id>")
+  .description("Delete a notebook by ID")
+  .action(async (id) => {
+    await notebookDelete(id);
   });
 
 // Parse and execute command, then check for updates

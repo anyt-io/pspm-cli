@@ -16,12 +16,15 @@ import {
   deleteSkill,
   deleteSkillVersion,
   exchangeCliToken,
+  getOrgSkillVersion,
   getSkill,
   getSkillVersion,
   listMySkills,
+  listOrgSkillVersions,
   listSkillVersions,
   listUserSkills,
   me,
+  publishOrgSkill,
   publishSkill,
 } from "./sdk/generated";
 
@@ -50,25 +53,27 @@ export function configure(options: {
   sdkConfigure({ baseUrl, apiKey: options.apiKey });
 }
 
+// Re-export types
+export type { SDKConfig };
 // Re-export SDK functions for convenience
 export {
   deleteSkill,
   deleteSkillVersion,
   exchangeCliToken,
   getConfig,
+  getOrgSkillVersion,
   getSkill,
   getSkillVersion,
   isConfigured,
   listMySkills,
+  listOrgSkillVersions,
   listSkillVersions,
   listUserSkills,
   me,
+  publishOrgSkill,
   publishSkill,
   SDKError,
 };
-
-// Re-export types
-export type { SDKConfig };
 
 /**
  * Get user info from the API using the /me endpoint.
@@ -168,6 +173,79 @@ export async function undeprecateSkillVersion(
     }
 
     const data = await response.json();
+    return { status: response.status, data };
+  } catch (error) {
+    return {
+      status: 500,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+// =============================================================================
+// Skill List API Functions
+// =============================================================================
+
+/**
+ * Fetch a public skill list by owner type and name.
+ * Calls GET /api/skill-lists/lists/@{ownerType}/{ownerName}/{listName}
+ */
+export async function fetchSkillList(
+  ownerType: "user" | "org",
+  ownerName: string,
+  listName: string,
+): Promise<{
+  status: number;
+  data?: {
+    name: string;
+    description: string | null;
+    visibility: "private" | "public";
+    ownerType: "user" | "org";
+    ownerName: string;
+    items: {
+      id: string;
+      skillId: string;
+      skillName: string;
+      namespace: string;
+      ownerName: string;
+      pinnedVersion: string | null;
+    }[];
+  };
+  error?: string;
+}> {
+  const config = getConfig();
+  try {
+    const response = await fetch(
+      `${config.baseUrl}/api/skill-lists/lists/@${ownerType}/${ownerName}/${listName}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(config.apiKey
+            ? { Authorization: `Bearer ${config.apiKey}` }
+            : {}),
+        },
+      },
+    );
+    if (!response.ok) {
+      const error = await response.text();
+      return { status: response.status, error };
+    }
+    const data = (await response.json()) as {
+      name: string;
+      description: string | null;
+      visibility: "private" | "public";
+      ownerType: "user" | "org";
+      ownerName: string;
+      items: {
+        id: string;
+        skillId: string;
+        skillName: string;
+        namespace: string;
+        ownerName: string;
+        pinnedVersion: string | null;
+      }[];
+    };
     return { status: response.status, data };
   } catch (error) {
     return {

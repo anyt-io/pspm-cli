@@ -59,7 +59,6 @@ export async function audit(options: AuditOptions): Promise<void> {
 
     const issues: AuditIssue[] = [];
     const skillsDir = getSkillsDir();
-    const projectRoot = process.cwd();
 
     if (!options.json) {
       console.log("Auditing installed skills...\n");
@@ -75,7 +74,7 @@ export async function audit(options: AuditOptions): Promise<void> {
       if (!match) continue;
 
       const [, username, skillName] = match;
-      const destDir = join(projectRoot, skillsDir, username, skillName);
+      const destDir = join(skillsDir, username, skillName);
 
       // Check if installed on disk
       const exists = await pathExists(destDir);
@@ -126,15 +125,8 @@ export async function audit(options: AuditOptions): Promise<void> {
       if (!parsed) continue;
 
       const destDir = parsed.path
-        ? join(
-            projectRoot,
-            skillsDir,
-            "_github",
-            parsed.owner,
-            parsed.repo,
-            parsed.path,
-          )
-        : join(projectRoot, skillsDir, "_github", parsed.owner, parsed.repo);
+        ? join(skillsDir, "_github", parsed.owner, parsed.repo, parsed.path)
+        : join(skillsDir, "_github", parsed.owner, parsed.repo);
 
       const exists = await pathExists(destDir);
       if (!exists) {
@@ -170,7 +162,6 @@ export async function audit(options: AuditOptions): Promise<void> {
     for (const { specifier, entry } of wellKnownSkills) {
       const wkEntry = entry as WellKnownLockfileEntry;
       const destDir = join(
-        projectRoot,
         skillsDir,
         "_wellknown",
         wkEntry.hostname,

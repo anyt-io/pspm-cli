@@ -128,6 +128,8 @@ pspm install
 | `pspm init` | Create pspm.json manifest |
 | `pspm publish` | Publish skill to registry |
 | `pspm login` | Authenticate via browser or API key |
+| `pspm skill-list <subcommand>` | Manage skill lists (list, create, show, delete, update, add-skill, remove-skill, install) |
+| `pspm notebook <subcommand>` | Manage notebooks (upload, list, download, delete) |
 | `pspm upgrade` | Update pspm itself to the latest version |
 
 ### `pspm install`
@@ -146,6 +148,10 @@ pspm install --dir ./custom-path
 
 # Install specific packages
 pspm install @user/alice/skill1 github:org/repo
+
+# Install all skills from a skill list
+pspm install --list @user/alice/my-favorites
+pspm install --list @org/myorg/team-skills
 ```
 
 ### `pspm search`
@@ -351,10 +357,11 @@ pspm version patch --dry-run      # Preview without writing
 ```bash
 pspm publish --access public      # Publish as public (irreversible)
 pspm publish --access private     # Publish as private (requires Pro)
+pspm publish --access team --org myorg       # Publish under org (team-only)
 pspm publish --access private --bump patch   # Bump and publish
 ```
 
-`--access` is required. Before uploading, `pspm publish` shows a preview of included files and package size. Max package size is **10MB**.
+`--access` is required (`public`, `private`, or `team`). Use `--org <orgname>` to publish under an organization namespace. `--access team` requires `--org`. Before uploading, `pspm publish` shows a preview of included files and package size. Max package size is **10MB**.
 
 ### Managing Published Skills
 
@@ -506,3 +513,5 @@ Auto-detects your package manager (pnpm, npm, yarn, bun). The CLI also checks fo
 ## License
 
 This project is licensed under [The Artistic License 2.0](LICENSE), the same license used by npm.
+
+<!-- @doc-sync: 1f5c64d | 2026-03-18 10:30 -->

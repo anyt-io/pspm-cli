@@ -4,7 +4,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
-import { configure, publishSkill } from "@/api-client";
+import { configure, publishOrgSkill, publishSkill } from "@/api-client";
 import { getRegistryUrl, requireApiKey } from "@/config";
 import { extractApiErrorMessage } from "@/errors";
 import {
@@ -146,7 +146,9 @@ export interface PublishOptions {
   bump?: "major" | "minor" | "patch";
   tag?: string;
   /** Set package visibility during publish (required) */
-  access: "public" | "private";
+  access: "public" | "private" | "team";
+  /** Publish under an organization namespace */
+  org?: string;
 }
 
 export async function publishCommand(options: PublishOptions): Promise<void> {
@@ -204,8 +206,11 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
     }
 
     // Create a mutable copy for version bumping
+    // Strip qualified prefix (@user/owner/ or @org/owner/) — server expects bare name
+    const nameParts = manifest.name.split("/");
+    const bareName = nameParts[nameParts.length - 1];
     const packageJson: SkillManifest = {
-      name: manifest.name,
+      name: bareName,
       version: manifest.version,
       description: manifest.description,
       files: manifest.files,
@@ -367,16 +372,36 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
       console.log("");
       console.log(`pspm notice Publishing to ${registryUrl} with tag latest`);
 
-      // Configure SDK and publish (use direct REST endpoints, not oRPC)
+      // Configure SDK and publish
       configure({ registryUrl, apiKey });
-      const response = await publishSkill({
-        manifest: packageJson,
-        tarballBase64,
-        visibility: options.access,
-      });
+
+      let response: {
+        status: number;
+        data?: any;
+        error?: any;
+      };
+
+      if (options.org) {
+        // Publish under org namespace
+        response = await publishOrgSkill(options.org, {
+          manifest: packageJson,
+          tarballBase64,
+          visibility: options.access,
+        });
+      } else {
+        // Publish under user namespace
+        response = await publishSkill({
+          manifest: packageJson,
+          tarballBase64,
+          visibility: options.access,
+        });
+      }
 
       if (response.status !== 200) {
-        const errorMessage = extractApiErrorMessage(response, "Publish failed");
+        const errorMessage = extractApiErrorMessage(
+          { status: response.status, data: response.data },
+          "Publish failed",
+        );
 
         // Check for version conflict errors
         if (
@@ -394,9 +419,14 @@ export async function publishCommand(options: PublishOptions): Promise<void> {
 
       const result = response.data;
       const visibility = result.skill.visibility;
-      const visibilityIcon = visibility === "public" ? "🌐" : "🔒";
+      const visibilityIcon =
+        visibility === "public" ? "🌐" : visibility === "team" ? "👥" : "🔒";
+      const namespace = options.org
+        ? "org"
+        : ((result.skill as any).namespace ?? "user");
+      const owner = options.org ?? result.skill.username;
       console.log(
-        `+ @${(result.skill as any).namespace ?? "user"}/${result.skill.username}/${result.skill.name}@${result.version.version}`,
+        `+ @${namespace}/${owner}/${result.skill.name}@${result.version.version}`,
       );
       console.log(`Checksum: ${result.version.checksum}`);
       console.log(`Visibility: ${visibilityIcon} ${visibility}`);

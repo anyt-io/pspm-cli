@@ -248,7 +248,10 @@ export function validateManifest(
   }
 
   // Validate name format (lowercase, alphanumeric, hyphens, underscores)
-  if (!/^[a-z][a-z0-9_-]*$/.test(manifest.name)) {
+  // Name can be bare ("my-skill") or qualified ("@user/owner/my-skill", "@org/owner/my-skill")
+  const parts = manifest.name.split("/");
+  const bareName = parts[parts.length - 1];
+  if (!/^[a-z][a-z0-9_-]*$/.test(bareName)) {
     return {
       valid: false,
       error:

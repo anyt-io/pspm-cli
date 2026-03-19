@@ -110,6 +110,8 @@ export interface InstallOptions {
   frozenLockfile?: boolean;
   dir?: string;
   agent?: string;
+  /** Install all skills from a skill list (e.g. @user/username/list-name) */
+  list?: string;
   yes?: boolean;
   /** Install globally (to ~/.pspm/ with global agent paths) */
   global?: boolean;
@@ -123,6 +125,25 @@ export async function install(
   if (options.global) {
     const { setGlobalMode } = await import("@/config");
     setGlobalMode(true);
+  }
+
+  // If --list flag is provided, resolve list to specifiers
+  if (options.list) {
+    const listSpecifiers = await resolveListToSpecifiers(options.list);
+    if (listSpecifiers.length === 0) {
+      console.log("No skills in the list to install.");
+      return;
+    }
+    // Merge any explicit specifiers with list items
+    const allSpecifiers = [...specifiers, ...listSpecifiers];
+    const { add } = await import("./add.js");
+    await add(allSpecifiers, {
+      save: true,
+      agent: options.agent,
+      yes: options.yes,
+      global: options.global,
+    });
+    return;
   }
 
   // If specifiers are provided, delegate to add command
@@ -139,6 +160,69 @@ export async function install(
 
   // Otherwise, install from lockfile
   await installFromLockfile(options);
+}
+
+/**
+ * Parse a list specifier and fetch skills from the API.
+ * Formats: @user/username/list-name, @org/orgname/list-name
+ */
+async function resolveListToSpecifiers(listSpec: string): Promise<string[]> {
+  // Parse the list specifier: @user/owner/name or @org/owner/name
+  const match = listSpec.match(/^@(user|org)\/([^/]+)\/([^/]+)$/);
+  if (!match) {
+    console.error(
+      `Error: Invalid list specifier "${listSpec}". Use format: @user/{username}/{list-name} or @org/{orgname}/{list-name}`,
+    );
+    process.exit(1);
+  }
+
+  const [, ownerType, ownerName, listName] = match;
+
+  // Configure SDK
+  const config = await resolveConfig();
+  configure({
+    registryUrl: config.registryUrl,
+    apiKey: getTokenForRegistry(config, config.registryUrl),
+  });
+
+  console.log(
+    `Fetching skill list @${ownerType}/${ownerName}/${listName}...\n`,
+  );
+
+  const { fetchSkillList } = await import("@/api-client");
+  const response = await fetchSkillList(
+    ownerType as "user" | "org",
+    ownerName,
+    listName,
+  );
+
+  if (response.status !== 200 || !response.data) {
+    const errorMsg =
+      response.status === 404
+        ? `List "@${ownerType}/${ownerName}/${listName}" not found or is private.`
+        : response.error || "Failed to fetch list";
+    console.error(`Error: ${errorMsg}`);
+    process.exit(1);
+  }
+
+  const list = response.data;
+  console.log(
+    `List: ${list.name}${list.description ? ` — ${list.description}` : ""}`,
+  );
+  console.log(`Skills: ${list.items.length}\n`);
+
+  // Convert list items to registry specifiers
+  const specifiers: string[] = [];
+  for (const item of list.items) {
+    const ns = item.namespace === "org" ? "org" : "user";
+    let spec = `@${ns}/${item.ownerName}/${item.skillName}`;
+    if (item.pinnedVersion) {
+      spec += `@${item.pinnedVersion}`;
+    }
+    specifiers.push(spec);
+  }
+
+  return specifiers;
 }
 
 async function installFromLockfile(options: InstallOptions): Promise<void> {
