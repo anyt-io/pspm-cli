@@ -12,8 +12,10 @@ import { parseRegistrySpecifier } from "./specifier";
 import {
   configure,
   getGithubSkillVersion,
+  getOrgSkillVersion,
   getSkillVersion,
   listGithubSkillVersions,
+  listOrgSkillVersions,
   listSkillVersions,
 } from "@/api-client";
 import { findHighestSatisfying } from "./version";
@@ -246,6 +248,13 @@ export async function resolveRecursive(
         );
         versionsStatus = resp.status;
         versionsData = resp.data;
+      } else if (parsed.namespace === "org") {
+        const resp = await listOrgSkillVersions(parsed.owner, parsed.name);
+        versionsStatus = resp.status;
+        versionsData =
+          resp.status === 200
+            ? (resp.data as { version: string }[])
+            : undefined;
       } else {
         const resp = await listSkillVersions(parsed.owner, parsed.name);
         versionsStatus = resp.status;
@@ -301,6 +310,15 @@ export async function resolveRecursive(
           parsed.owner,
           parsed.name,
           parsed.subname,
+          resolvedVersion,
+        );
+        if (resp.status === 200 && resp.data) {
+          versionData = resp.data;
+        }
+      } else if (parsed.namespace === "org") {
+        const resp = await getOrgSkillVersion(
+          parsed.owner,
+          parsed.name,
           resolvedVersion,
         );
         if (resp.status === 200 && resp.data) {
@@ -388,6 +406,12 @@ export async function resolveRecursive(
           p2Parsed.subname,
         );
         p2Versions = resp.status === 200 ? resp.data : undefined;
+      } else if (p2Parsed.namespace === "org") {
+        const resp = await listOrgSkillVersions(p2Parsed.owner, p2Parsed.name);
+        p2Versions =
+          resp.status === 200
+            ? (resp.data as { version: string }[])
+            : undefined;
       } else {
         const resp = await listSkillVersions(p2Parsed.owner, p2Parsed.name);
         p2Versions =
@@ -433,6 +457,15 @@ export async function resolveRecursive(
             p2Parsed.owner,
             p2Parsed.name,
             p2Parsed.subname,
+            finalVersion,
+          );
+          if (resp.status === 200 && resp.data) {
+            p2VersionData = resp.data;
+          }
+        } else if (p2Parsed.namespace === "org") {
+          const resp = await getOrgSkillVersion(
+            p2Parsed.owner,
+            p2Parsed.name,
             finalVersion,
           );
           if (resp.status === 200 && resp.data) {

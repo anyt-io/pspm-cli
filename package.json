@@ -1,6 +1,6 @@
 {
 	"name": "@anytio/pspm",
-	"version": "0.9.2",
+	"version": "0.12.0",
 	"description": "CLI for PSPM - Prompt Skill Package Manager for AI coding agents",
 	"author": "anyt.io",
 	"license": "Artistic-2.0",

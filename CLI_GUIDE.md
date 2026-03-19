@@ -222,6 +222,10 @@ pspm install -y                          # Skip agent selection prompt
 
 # Install specific packages (like npm):
 pspm install @user/alice/skill1 github:org/repo
+
+# Install all skills from a skill list:
+pspm install --list @user/alice/my-favorites
+pspm install --list @org/myteam/starter-kit
 ```
 
 ### Link Skills

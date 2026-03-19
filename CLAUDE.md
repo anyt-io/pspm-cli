@@ -26,16 +26,18 @@ The CLI is a Commander.js application that manages prompt skills for AI coding a
 ### Key Files
 
 - `src/index.ts` - Main CLI entry point with all commands
-- `src/api-client.ts` - SDK wrapper (imports from local `src/sdk/`); includes `@github` namespace API functions (`listGithubSkillVersions`, `getGithubSkillVersion`)
+- `src/api-client.ts` - SDK wrapper (imports from local `src/sdk/`); includes `@github` and `@org` namespace API functions
 - `src/sdk/` - Generated SDK (fetcher.ts + generated/index.ts)
 - `src/config.ts` - User/project configuration (~/.pspmrc, .pspmrc)
 - `src/lockfile.ts` - Lockfile operations (pspm-lock.json)
 - `src/manifest.ts` - Manifest operations (pspm.json)
-- `src/agents.ts` - Agent detection and configuration (41 agents with project + global skills dirs)
+- `src/agents.ts` - Agent detection and configuration (41+ agents with project + global skills dirs)
 - `src/symlinks.ts` - Agent symlink management (project and global scope); `getRegistrySkillPath` supports namespace-aware paths
 - `src/github.ts` - GitHub package support
 - `src/wellknown.ts` - Well-known URL skill discovery (RFC 8615)
 - `src/update-notifier.ts` - Background update checker (24h interval)
+- `src/commands/skill-list.ts` - Skill list CRUD commands
+- `src/commands/notebook.ts` - Notebook upload/list/download/delete commands
 - `src/errors.ts` - CLI error types
 
 ### Commands (src/commands/)
@@ -50,7 +52,7 @@ The CLI is a Commander.js application that manages prompt skills for AI coding a
 | `add` | Add and install skills |
 | `remove` | Remove installed skill |
 | `list` | List installed skills |
-| `install` | Install from lockfile or add packages |
+| `install` | Install from lockfile, add packages, or install from skill list (`--list @user/name/list` or `--list @org/name/list`) |
 | `link` | Recreate agent symlinks |
 | `update` | Update skills to latest versions |
 | `outdated` | Check for outdated skills (`--json`, `--all`) |
@@ -62,6 +64,8 @@ The CLI is a Commander.js application that manages prompt skills for AI coding a
 | `config show` | Show resolved configuration |
 | `config init` | Create .pspmrc file |
 | `upgrade` | Self-update pspm to latest version (auto-detects package manager) |
+| `skill-list` | Manage skill lists (list, create, show, delete, update, add-skill, remove-skill, install) |
+| `notebook` | Manage notebooks (upload, list, download, delete) |
 
 ### Library (src/lib/)
 
@@ -213,4 +217,4 @@ import { resolveConfig } from "@/config";
 
 Configured in `tsconfig.json` and `vitest.config.ts`.
 
-<!-- @doc-sync: f49f568 | 2026-03-09 14:49 -->
+<!-- @doc-sync: 1f5c64d | 2026-03-18 10:30 -->

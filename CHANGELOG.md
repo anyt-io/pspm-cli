@@ -5,6 +5,59 @@ All notable changes to the PSPM CLI will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-03-19
+
+### Added
+
+- **Skill list CLI commands**: Full CRUD `pspm skill-list` command group with 8 subcommands
+  - `pspm skill-list list` — list your skill lists
+  - `pspm skill-list create <name>` — create a new skill list
+  - `pspm skill-list show <name>` — view list details and items
+  - `pspm skill-list delete <name>` — delete a skill list
+  - `pspm skill-list update <name>` — update list metadata
+  - `pspm skill-list add-skill <list> <specifier>` — add a skill to a list
+  - `pspm skill-list remove-skill <list> <specifier>` — remove a skill from a list
+  - `pspm skill-list install <name>` — install all skills from a list
+- **Notebook commands**: Upload, share, and manage .anyt notebooks via CLI
+  - `pspm notebook upload <file>` — upload a notebook to the platform
+  - `pspm notebook list` — list your uploaded notebooks
+  - `pspm notebook download <id>` — download a notebook
+  - `pspm notebook delete <id>` — delete a notebook
+
+### Fixed
+
+- **Audit false positives**: Fixed double path joining that caused installed skills to always report as MISSING
+- **Publish with qualified names**: `@user/owner/name` format no longer rejected by server validation
+- **Remove @github skills**: GitHub-indexed skills can now be removed by short name
+- **Outdated command crash**: Fixed crash on @github namespace packages in lockfile
+- **Manifest validation**: Regex now accepts qualified name format in pspm.json
+
+## [0.11.0] - 2026-03-17
+
+### Added
+
+- **Skill list install**: Install all skills from a curated skill list with `pspm install --list @user/username/list-name`
+  - Supports both user and org lists: `@user/{username}/{list-name}` or `@org/{orgname}/{list-name}`
+  - Fetches list from the registry API and resolves items to registry specifiers
+  - Respects pinned versions when specified in the list
+  - Can be combined with explicit specifiers for additional packages
+
+### Changed
+
+- Updated all dependencies to latest versions
+
+## [0.10.0] - 2026-03-14
+
+### Added
+
+- **Organization publishing**: Publish skills under an org namespace with `pspm publish --org <orgname>`
+  - `pspm publish --access team --org myorg` — publish as team-visible under `@org/myorg/skill-name`
+  - `pspm publish --access public --org myorg` — publish as public under org namespace
+- **Team visibility**: New `--access team` option restricts package access to org members only
+- **Org namespace resolution**: `@org/` namespace fully supported in dependency resolution
+  - Install org-scoped packages: `pspm add @org/myorg/skill-name`
+  - Recursive dependency resolution for org packages
+
 ## [0.9.2] - 2026-03-10
 
 ### Changed
@@ -77,7 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Fix npm install failure**: Moved `@repo/pspm-types` and `@repo/skill-registry` from `dependencies` to `devDependencies` to prevent npm from trying to install workspace-only packages from the public registry
+- **Fix npm install failure**: Moved `@repo/types` and `@repo/skill-registry` from `dependencies` to `devDependencies` to prevent npm from trying to install workspace-only packages from the public registry
 
 ## [0.7.1] - 2026-03-02
 
