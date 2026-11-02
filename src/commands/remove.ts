@@ -87,15 +87,6 @@ async function removeRegistry(
     process.exit(1);
   }
 
-  // Remove symlinks from all agents — use subname for @github (the actual skill name)
-  const symlinkName = subname ?? name;
-  await removeAgentSymlinks(symlinkName, {
-    agents,
-    projectRoot: process.cwd(),
-    agentConfigs,
-  });
-
-  // Remove from disk
   const skillsDir = getSkillsDir();
   let destDir: string;
   if (namespace === "github" && subname) {
@@ -105,6 +96,14 @@ async function removeRegistry(
   } else {
     destDir = join(skillsDir, owner, name);
   }
+
+  // Remove symlinks from all agents — use subname for @github (the actual skill name)
+  const symlinkName = subname ?? name;
+  await removeAgentSymlinks(symlinkName, destDir, {
+    agents,
+    projectRoot: process.cwd(),
+    agentConfigs,
+  });
 
   try {
     await rm(destDir, { recursive: true, force: true });
@@ -149,7 +148,8 @@ async function removeGitHub(
 
   // Remove symlinks from all agents
   const skillName = getGitHubSkillName(parsed);
-  await removeAgentSymlinks(skillName, {
+  const destPath = getGitHubSkillPath(parsed.owner, parsed.repo, parsed.path);
+  await removeAgentSymlinks(skillName, join(process.cwd(), destPath), {
     agents,
     projectRoot: process.cwd(),
     agentConfigs,
@@ -157,7 +157,6 @@ async function removeGitHub(
 
   // Remove from disk
   const skillsDir = getSkillsDir();
-  const destPath = getGitHubSkillPath(parsed.owner, parsed.repo, parsed.path);
   const destDir = join(skillsDir, "..", destPath);
 
   try {

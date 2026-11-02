@@ -6,7 +6,7 @@
  */
 
 import { lstat, mkdir, readlink, rm, symlink } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { resolveAgentConfig } from "./agents";
 import type { AgentConfig } from "./lib/index";
 
@@ -125,10 +125,12 @@ async function createSymlink(
  * Remove symlinks for a skill from all agent directories.
  *
  * @param skillName - Name of the skill (symlink name)
+ * @param targetPath - Absolute path to the package being removed
  * @param options - Symlink options
  */
 export async function removeAgentSymlinks(
   skillName: string,
+  targetPath: string,
   options: CreateSymlinksOptions,
 ): Promise<void> {
   const { agents, projectRoot, agentConfigs } = options;
@@ -148,13 +150,12 @@ export async function removeAgentSymlinks(
     const symlinkPath = join(projectRoot, config.skillsDir, skillName);
 
     try {
-      const stats = await lstat(symlinkPath).catch(() => null);
-
-      if (stats?.isSymbolicLink()) {
+      const target = await readlink(symlinkPath);
+      if (resolve(dirname(symlinkPath), target) === targetPath) {
         await rm(symlinkPath);
       }
     } catch {
-      // Ignore errors - symlink may not exist
+      // Missing links and regular files need no cleanup.
     }
   }
 }
